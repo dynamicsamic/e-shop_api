@@ -1,40 +1,27 @@
 import datetime as dt
-import logging
 from typing import Any, Dict, Literal, Mapping, Tuple
 
-from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.db.models.query import QuerySet
 from django.utils.translation import gettext_lazy as _
 
-from .utils import TimeStampModel
 
-logger = logging.getLogger(__name__)
+class TimeStampModel(models.Model):
+    """Django model with `created_at` and `updated_at` fields."""
 
-
-class CustomUserManager(UserManager):
-    def create_user(self, *args, **kwargs):
-        create_customer = kwargs.pop("create_customer", None)
-        user = super().create_user(*args, **kwargs)
-        if create_customer:
-            Customer.objects.create(user=user)
-        return user
-
-
-class User(AbstractUser):
-    email = models.EmailField(_("email adress"), unique=True)
-    is_active = models.BooleanField(
-        _("active"),
-        default=False,
-        help_text=_(
-            "Designates whether this user should be treated as active. "
-            "Unselect this instead of deleting accounts."
-        ),
+    created_at = models.DateTimeField(
+        _("object creation time"),
+        help_text=_("format: Y-m-d H:M:S"),
+        auto_now_add=True,
+    )
+    updated_at = models.DateTimeField(
+        _("object last update time"),
+        help_text=_("format: Y-m-d H:M:S"),
+        auto_now=True,
     )
 
-    objects = CustomUserManager()
+    class Meta:
+        abstract = True
 
 
 class UserRoleManager(models.Manager):
@@ -117,34 +104,7 @@ class AbstractUserRole(models.Model):
         return self.user.groups
 
 
-class Customer(AbstractUserRole, TimeStampModel):
-    class CustomerStatus(models.TextChoices):
-        CREATED = "created"
-        ACTIVATED = "activated"
-        FROZEN = "frozen"
-        ARCHIVED = "archived"
-
-    user = models.OneToOneField(
-        get_user_model(),
-        on_delete=models.CASCADE,
-        related_name="customer",
-    )
-    status = models.CharField(
-        _("Customer status"),
-        max_length=20,
-        help_text=_("required, default: created"),
-        choices=CustomerStatus.choices,
-        default=CustomerStatus.CREATED,
-    )
-    phone_number = models.CharField(
-        _("Customer phone number"),
-        help_text=_("optional, max_len: 15"),
-        max_length=15,
-        blank=True,
-        null=True,
-    )
-
-
+'''
 class Moderator(AbstractUserRole):
     """Needs fixing. Meanwhile leave it abstract."""
 
@@ -156,3 +116,4 @@ class Moderator(AbstractUserRole):
 
     class Meta:
         abstract = True
+'''
