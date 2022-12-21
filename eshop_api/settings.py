@@ -7,21 +7,19 @@ SECRET_KEY = project_secrets.SECRET_KEY
 DEBUG = project_secrets.DEBUG
 ALLOWED_HOSTS = project_secrets.ALLOWED_HOSTS
 
-# Application definition
 
 INSTALLED_APPS = [
+    "accounts",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "users.apps.UsersConfig",
-    "customers.apps.CustomerConfig",
-    "utils.apps.UtilsConfig",
+    # "accounts.apps.AccountsConfig",
+    "customers.apps.CustomersConfig",
     "db.apps.DbConfig",
     "tests.apps.TestsConfig",
-    # "api.apps.ApiConfig",
 ]
 
 MIDDLEWARE = [
@@ -107,4 +105,4 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-AUTH_USER_MODEL = "users.User"
+AUTH_USER_MODEL = "accounts.User"

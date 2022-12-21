@@ -4,7 +4,7 @@ import factory
 from django.contrib.auth import get_user_model
 from faker import Faker
 
-from user_accounts import Customer
+from customers.models import Customer
 
 User = get_user_model()
 fake = Faker()

@@ -4,5 +4,5 @@ router = Router()
 
 
 @router.get("/")
-def list_customers(request):
-    return "customers"
+def list_users(request):
+    return "accounts"

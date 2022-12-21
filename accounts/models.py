@@ -8,17 +8,18 @@ from django.db import models
 from django.db.models.query import QuerySet
 from django.utils.translation import gettext_lazy as _
 
-from customers.models import Customer
-
 logger = logging.getLogger(__name__)
 
 
 class CustomUserManager(UserManager):
-    def create_user(self, *args, **kwargs):
+    def create_user(self, *args, **kwargs) -> "User":
+        from customers.models import Customer
+
         create_customer = kwargs.pop("create_customer", None)
         user = super().create_user(*args, **kwargs)
         if create_customer:
-            Customer.objects.create(user=user)
+            customer = Customer.objects.create(user=user)
+            logger.info(f"Created a Customer object with id {customer.id}")
         return user
 
 
