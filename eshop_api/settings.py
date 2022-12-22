@@ -9,14 +9,13 @@ ALLOWED_HOSTS = project_secrets.ALLOWED_HOSTS
 
 
 INSTALLED_APPS = [
-    "accounts",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # "accounts.apps.AccountsConfig",
+    "x_users.apps.XUsersConfig",
     "customers.apps.CustomersConfig",
     "db.apps.DbConfig",
     "tests.apps.TestsConfig",
@@ -105,4 +104,4 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-AUTH_USER_MODEL = "accounts.User"
+AUTH_USER_MODEL = "x_users.User"

@@ -1,7 +1,7 @@
 from ninja import NinjaAPI
 
-from accounts.api import router as users_router
 from customers.api import router as custmers_router
+from x_users.api import router as users_router
 
 api = NinjaAPI()
 
