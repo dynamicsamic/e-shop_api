@@ -17,4 +17,5 @@ def list_users(request):
 @router.post("/", response=UserOut)
 def create_user(request, payload: UserIn):
     user = User.objects.create_user(**payload.dict())
+    # user, _ = User.objects.get_or_create(**payload.dict())
     return user

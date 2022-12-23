@@ -4,11 +4,6 @@ from ninja import ModelSchema, Schema
 User = get_user_model()
 
 
-# class BaseUser(Schema):
-#    username: str
-#    email: str
-#    first_name: str = None
-#    last_name: str = None
 #
 
 # class UserOut(BaseUser):
@@ -28,7 +23,21 @@ class UserOut(ModelSchema):
         )
 
 
-class UserIn(ModelSchema):
+class UserIns(ModelSchema):
     class Config:
         model = User
-        model_fields = ("username", "email", "first_name", "last_name")
+        model_fields = (
+            "username",
+            "password",
+            "email",
+            "first_name",
+            "last_name",
+        )
+
+
+class UserIn(Schema):
+    username: str
+    email: str
+    password: str
+    first_name: str = ""
+    last_name: str = ""
