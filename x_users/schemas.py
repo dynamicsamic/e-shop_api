@@ -41,3 +41,7 @@ class UserIn(Schema):
     password: str
     first_name: str = ""
     last_name: str = ""
+
+
+class Message(Schema):
+    message: str

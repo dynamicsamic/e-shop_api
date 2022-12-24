@@ -1,12 +1,20 @@
+import json
+from http import HTTPStatus
+
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse_lazy
 
 from tests.factories import UserFactory
 
 USER_NUM = 10
 
+User = get_user_model()
+
 
 class UserTestCase(TestCase):
     def setUp(self):
+        self.api_url_prefix = "api-1.0.0:"
         self.users = UserFactory.create_batch(USER_NUM)
         for user in self.users:
             user.set_password(user.password)
@@ -23,11 +31,9 @@ class UserTestCase(TestCase):
         )
 
     def test_can_create_customer_along_with_user(self):
-        from django.contrib.auth import get_user_model
 
         from customers.models import Customer
 
-        User = get_user_model()
         valid_data = {
             "username": "user000",
             "email": "user000@hello.py",
@@ -37,3 +43,32 @@ class UserTestCase(TestCase):
         customer_num_initial = Customer.objects.count()
         User.objects.create_user(**valid_data)
         self.assertEqual(Customer.objects.count(), customer_num_initial + 1)
+
+    def test_user_list_view(self):
+        url = reverse_lazy(self.api_url_prefix + "user_list")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+        self.assertEqual(len(resp.json()), len(self.users))
+
+    def test_user_create_view_valid_data(self):
+        url = reverse_lazy(self.api_url_prefix + "user_create")
+        valid_data = {
+            "username": "user000",
+            "email": "user000@hello.py",
+            "password": "hello",
+        }
+        resp = self.client.post(
+            path=url,
+            data=valid_data,
+        )
+        print(resp.json())
+        print(resp.status_code)
+        # valid_data = {
+        #    "username": "user000",
+        #    "email": "user000@hello.py",
+        #    "password": "hello",
+        # }
+        # resp = self.client.post(path=url, data={"username": "sammi"})
+        # print(resp.status_code)
+        # print(resp.json())
+        # print(resp.request)

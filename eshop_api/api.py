@@ -7,3 +7,13 @@ api = NinjaAPI()
 
 api.add_router("/users/", users_router)
 api.add_router("/customers/", custmers_router)
+
+from django.urls import reverse_lazy
+
+
+@api.get("/")
+def index(request):
+    from django.urls import reverse_lazy
+
+    print(reverse_lazy("api-1.0.0:user_create"))
+    return "hello"
