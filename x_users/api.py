@@ -3,7 +3,9 @@ from typing import List
 
 from django.contrib.auth import get_user_model
 from django.http.response import HttpResponse
+from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
+from django.views.decorators.csrf import csrf_exempt
 from ninja import Router
 
 from .schemas import Message, UserIn, UserOut
@@ -44,8 +46,12 @@ def user_list(request):
     return User.objects.all()
 
 
-@router.post("/create", response=UserOut, url_name="user_create")
+@router.post("/create", url_name="user_create", response=UserOut)
 def user_create(request, payload: UserIn):
     user = User.objects.create_user(**payload.dict())
-    # user, _ = User.objects.get_or_create(**payload.dict())
     return user
+
+
+@router.get("/{id}/", response=UserOut, url_name="user_detail")
+def user_detail(request, id: int):
+    return get_object_or_404(User, pk=id)

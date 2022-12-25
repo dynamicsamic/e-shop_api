@@ -23,24 +23,22 @@ class UserOut(ModelSchema):
         )
 
 
-class UserIns(ModelSchema):
+class UserIn(ModelSchema):
     class Config:
         model = User
         model_fields = (
             "username",
             "password",
             "email",
-            "first_name",
-            "last_name",
         )
 
 
-class UserIn(Schema):
+class UserIns(Schema):
     username: str
     email: str
     password: str
-    first_name: str = ""
-    last_name: str = ""
+    # first_name: str = ""
+    # last_name: str = ""
 
 
 class Message(Schema):
