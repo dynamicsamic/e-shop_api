@@ -7,6 +7,7 @@ api = NinjaAPI()
 
 api.add_router("/users/", users_router)
 api.add_router("/customers/", custmers_router)
+print(list(users_router.urls_paths("api-1.0.0")))
 
 from django.urls import reverse_lazy
 

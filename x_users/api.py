@@ -46,12 +46,21 @@ def user_list(request):
     return User.objects.all()
 
 
-@router.post("/create", url_name="user_create", response=UserOut)
+@router.get("/{id}/", response=UserOut, url_name="user_detail")
+def user_detail(request, id: int):
+    return get_object_or_404(User, pk=id)
+
+
+@router.post("/create", response=UserOut, url_name="user_create")
 def user_create(request, payload: UserIn):
     user = User.objects.create_user(**payload.dict())
     return user
 
 
-@router.get("/{id}/", response=UserOut, url_name="user_detail")
-def user_detail(request, id: int):
-    return get_object_or_404(User, pk=id)
+@router.put("/{id}/update/", response=UserOut, url_name="user_update")
+def user_update(request, id: int, payload: UserIn):
+    user = get_object_or_404(User, pk=id)
+    for attr, value in payload.dict().items():
+        setattr(user, attr, value)
+    user.save()
+    return user

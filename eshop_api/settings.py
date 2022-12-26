@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "ninja",
     "x_users.apps.XUsersConfig",
     "customers.apps.CustomersConfig",
     "db.apps.DbConfig",

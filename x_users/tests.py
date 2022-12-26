@@ -4,15 +4,27 @@ from http import HTTPStatus
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse_lazy
+from ninja.testing import TestClient
 
 from tests.factories import UserFactory
+
+from .api import router
 
 USER_NUM = 10
 
 User = get_user_model()
 
 
-class UserTestCase(TestCase):
+class CreateUsersMixin:
+    @classmethod
+    def setUpClass(cls):
+        cls.users = UserFactory.create_batch(USER_NUM)
+        for user in cls.users:
+            user.set_password(user.password)
+            user.save(update_fields=("password",))
+
+
+class UserModelTestCase(TestCase):
     def setUp(self):
         self.api_url_prefix = "api-1.0.0:"
         self.users = UserFactory.create_batch(USER_NUM)
@@ -51,40 +63,25 @@ class UserTestCase(TestCase):
         self.assertEqual(len(resp.json()), len(self.users))
 
 
-import requests
-from ninja.testing import TestClient
-
-from eshop_api.api import api
-from x_users.api import router
-from x_users.schemas import UserIns
-
-
-class UserViesTestCase(TestCase):
+class UserApiTestCase(CreateUsersMixin, TestCase):
     def setUp(self):
-        self.cclient = TestClient(router)
-        self.api_url_prefix = "api-1.0.0:"
+        self.client = TestClient(router)
+
+    def test_foo(self):
+        resp = self.client.get("/")
+        print(resp.json())
 
     def test_user_create_view_valid_data(self):
-        # url = self.api_url_prefix + "user_create"
         url = reverse_lazy(self.api_url_prefix + "user_create")
-        # url = "http://127.0.0.1:5000/api/users/create"
         valid_data = {
             "username": "user001",
             "email": "user000dffdfd@hello.py",
             "password": "hello",
         }
-        # resp = requests.post(url=url, data=json.dumps(valid_data))
-        resp = self.cclient.post(
-            path=url,
-            data=valid_data
-            # data=usr.dict()
-            # json=valid_data,
-            # data={"message": "hello"},
-        )
-        # print(resp.request)
+        resp = self.client.post(path="create", json=valid_data)
+
+        print(resp.json())
         # print(resp.items())
-        # print(resp.json())
-        print(resp)
         print(resp.status_code)
         # valid_data = {
         #    "username": "user000",
