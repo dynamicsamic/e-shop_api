@@ -2,7 +2,8 @@ import logging
 from typing import List
 
 from django.contrib.auth import get_user_model
-from django.http.response import HttpResponse
+from django.db import IntegrityError
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.views.decorators.csrf import csrf_exempt
@@ -51,13 +52,19 @@ def user_detail(request, id: int):
     return get_object_or_404(User, pk=id)
 
 
-@router.post("/create", response=UserOut, url_name="user_create")
+@router.post(
+    "/create", response={201: UserOut, 400: Message}, url_name="user_create"
+)
 def user_create(request, payload: UserIn):
-    user = User.objects.create_user(**payload.dict())
+    try:
+        user, _ = User.objects.get_or_create(**payload.dict())
+    except IntegrityError:
+        logger.info("Instance duplication attempt", exc_info=1)
+        return 400, {"message": "Instance with such attributes already exists"}
     return user
 
 
-@router.put("/{id}/update/", response=UserOut, url_name="user_update")
+@router.put("/{id}/update", response=UserOut, url_name="user_update")
 def user_update(request, id: int, payload: UserIn):
     user = get_object_or_404(User, pk=id)
     for attr, value in payload.dict().items():

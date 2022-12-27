@@ -9,6 +9,7 @@ from ninja.testing import TestClient
 from tests.factories import UserFactory
 
 from .api import router
+from .schemas import UserOut
 
 USER_NUM = 10
 
@@ -18,6 +19,7 @@ User = get_user_model()
 class CreateUsersMixin:
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.users = UserFactory.create_batch(USER_NUM)
         for user in cls.users:
             user.set_password(user.password)
@@ -66,29 +68,148 @@ class UserModelTestCase(TestCase):
 class UserApiTestCase(CreateUsersMixin, TestCase):
     def setUp(self):
         self.client = TestClient(router)
+        self.urls = {
+            "user_list": "/",
+            "user_create": "/create",
+            "user_detail": "/<id>/",
+        }
 
-    def test_foo(self):
-        resp = self.client.get("/")
-        print(resp.json())
+    #        print(list(router.urls_paths("api-1.0.0")))
 
-    def test_user_create_view_valid_data(self):
-        url = reverse_lazy(self.api_url_prefix + "user_create")
+    def test_user_list_returns_list_of_all_users(self):
+        user_num = User.objects.count()
+        resp = self.client.get(self.urls["user_list"])
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+        self.assertEqual(len(resp.json()), user_num)
+
+    def test_user_list_contains_only_specific_schema_items(self):
+        resp = self.client.get(self.urls["user_list"])
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+        self.assertTrue(all(UserOut(**item) for item in resp.json()))
+
+    def test_user_list_returns_empty_list_when_no_users_exist(self):
+        User.objects.all().delete()
+        resp = self.client.get(self.urls["user_list"])
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+        self.assertEqual(resp.json(), [])
+
+    def test_user_create_with_valid_data_creates_user(self):
+        user_num = User.objects.count()
         valid_data = {
             "username": "user001",
-            "email": "user000dffdfd@hello.py",
+            "email": "user001d@hello.py",
             "password": "hello",
         }
-        resp = self.client.post(path="create", json=valid_data)
+        resp = self.client.post(path=self.urls["user_create"], json=valid_data)
+        result = resp.json()
+        self.assertTrue(resp.status_code, HTTPStatus.CREATED)
+        self.assertTrue(User.objects.count(), user_num + 1)
+        self.assertTrue(UserOut(**result))
 
-        print(resp.json())
-        # print(resp.items())
-        print(resp.status_code)
-        # valid_data = {
-        #    "username": "user000",
-        #    "email": "user000@hello.py",
-        #    "password": "hello",
-        # }
-        # resp = self.client.post(path=url, data={"username": "sammi"})
-        # print(resp.status_code)
-        # print(resp.json())
-        # print(resp.request)
+        if new_user := User.objects.filter(
+            username=result.get("username")
+        ).first():
+            self.assertEqual(new_user.get_username(), result.get("username"))
+            self.assertEqual(new_user.email, result.get("email"))
+            self.assertFalse("password" in result)
+            self.assertFalse(new_user.is_active)
+            self.assertFalse(new_user.is_superuser)
+            self.assertFalse(new_user.is_active)
+        else:
+            self.fail()
+
+    def test_user_create_with_missing_email_returns_422_status_code(self):
+        invalid_data = {
+            "username": "user001",
+            "password": "hello",
+        }
+        resp = self.client.post(
+            path=self.urls["user_create"], json=invalid_data
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertFalse(
+            User.objects.filter(username=invalid_data.get("username")).exists()
+        )
+
+    def test_user_create_with_invalid_email_returns_422_status_code(self):
+        invalid_data = {
+            "username": "user001",
+            "email": "invalid_email",
+            "password": "hello",
+        }
+        resp = self.client.post(
+            path=self.urls["user_create"], json=invalid_data
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertFalse(
+            User.objects.filter(username=invalid_data.get("username")).exists()
+        )
+
+    def test_user_create_with_not_unique_email_returns_422_status_code(self):
+        existing_user = self.users[0]
+        invalid_data = {
+            "username": "user001",
+            "email": existing_user.email,
+            "password": "hello",
+        }
+        resp = self.client.post(
+            path=self.urls["user_create"], json=invalid_data
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertFalse(
+            User.objects.filter(username=invalid_data.get("username")).exists()
+        )
+
+    def test_user_create_with_missing_password_returns_422_status_code(self):
+        invalid_data = {
+            "username": "user001",
+            "email": "user001d@hello.py",
+        }
+        resp = self.client.post(
+            path=self.urls["user_create"], json=invalid_data
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertFalse(
+            User.objects.filter(username=invalid_data.get("username")).exists()
+        )
+
+    def test_user_create_with_blank_password_returns_422_status_code(self):
+        invalid_data = {
+            "username": "user001",
+            "email": "user001d@hello.py",
+            "password": "",
+        }
+        resp = self.client.post(
+            path=self.urls["user_create"], json=invalid_data
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertFalse(
+            User.objects.filter(username=invalid_data.get("username")).exists()
+        )
+
+    def test_user_create_with_missing_username_returns_422_status_code(self):
+        invalid_data = {
+            "email": "user001d@hello.py",
+            "password": "hello",
+        }
+        resp = self.client.post(
+            path=self.urls["user_create"], json=invalid_data
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertFalse(
+            User.objects.filter(username=invalid_data.get("username")).exists()
+        )
+
+    def test_user_create_with_too_short_username_returns_422_status_code(self):
+        invalid_data = {
+            "username": "us",
+            "email": "user001d@hello.py",
+            "password": "hello",
+        }
+        resp = self.client.post(
+            path=self.urls["user_create"], json=invalid_data
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertFalse(
+            User.objects.filter(username=invalid_data.get("username")).exists()
+        )
