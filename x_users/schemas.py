@@ -40,9 +40,15 @@ class UserIn(Schema):
     username: constr(regex=LONG_ENOUGH_REGEX)
     email: constr(regex=EMAIL_REGEX)
     password: constr(regex=LONG_ENOUGH_REGEX)
+    # first_name: str = ""
+    # last_name: str = ""
+
+
+class UserUpdate(Schema):
+    email: constr(regex=EMAIL_REGEX)
     first_name: str = ""
     last_name: str = ""
 
 
-class Message(Schema):
-    message: str
+class ErrorMessage(Schema):
+    error_message: str

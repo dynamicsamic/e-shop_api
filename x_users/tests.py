@@ -70,8 +70,9 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
         self.client = TestClient(router)
         self.urls = {
             "user_list": "/",
+            "user_detail": "/{}/",
+            "user_update": "/{}/update",
             "user_create": "/create",
-            "user_detail": "/<id>/",
         }
 
     #        print(list(router.urls_paths("api-1.0.0")))
@@ -92,6 +93,31 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
         resp = self.client.get(self.urls["user_list"])
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         self.assertEqual(resp.json(), [])
+
+    def test_user_detail_with_valid_id_returns_expected_output(self):
+        user = User.objects.first()
+        url = self.urls.get("user_detail").format(user.id)
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+
+        data = resp.json()
+        self.assertTrue(UserOut(**data))
+        self.assertTrue(data.get("username"), user.get_username())
+        self.assertTrue(data.get("email"), user.email)
+        self.assertTrue(data.get("first_name"), user.first_name)
+        self.assertTrue(data.get("last_name"), user.last_name)
+
+    def test_user_detail_with_invalid_id_returns_404_status_code(self):
+        invalid_id = -10
+        url = self.urls.get("user_detail").format(invalid_id)
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_user_detail_with_wrong_format_id_returns_422_status_code(self):
+        invalid_id = "invalid"
+        url = self.urls.get("user_detail").format(invalid_id)
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_user_create_with_valid_data_creates_user(self):
         user_num = User.objects.count()
@@ -145,7 +171,7 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
             User.objects.filter(username=invalid_data.get("username")).exists()
         )
 
-    def test_user_create_with_not_unique_email_returns_422_status_code(self):
+    def test_user_create_with_not_unique_email_returns_400_status_code(self):
         existing_user = self.users[0]
         invalid_data = {
             "username": "user001",
@@ -156,6 +182,7 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
             path=self.urls["user_create"], json=invalid_data
         )
         self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertTrue("error_message" in resp.json())
         self.assertFalse(
             User.objects.filter(username=invalid_data.get("username")).exists()
         )
@@ -213,3 +240,50 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
         self.assertFalse(
             User.objects.filter(username=invalid_data.get("username")).exists()
         )
+
+    def test_user_create_with_not_unique_username_returns_400_status_code(
+        self,
+    ):
+        existing_user = self.users[0]
+        invalid_data = {
+            "username": existing_user.get_username(),
+            "email": "user001d@hello.py",
+            "password": "hello",
+        }
+        resp = self.client.post(
+            path=self.urls["user_create"], json=invalid_data
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertTrue("error_message" in resp.json())
+        self.assertFalse(
+            User.objects.filter(username=invalid_data.get("email")).exists()
+        )
+
+    def test_user_update_with_valid_data_updates_user(self):
+        user = self.users[0]
+        valid_data = {
+            "email": "new_user001@hello.py",
+            "first_name": "John",
+            "last_name": "Doe",
+        }
+        url = self.urls.get("user_update").format(user.id)
+        resp = self.client.put(url, json=valid_data)
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+        self.assertTrue(UserOut(**resp.json()))
+
+        updated_user = User.objects.get(id=user.id)
+        self.assertEqual(updated_user.email, valid_data.get("email"))
+        self.assertEqual(updated_user.first_name, valid_data.get("first_name"))
+        self.assertEqual(updated_user.last_name, valid_data.get("last_name"))
+
+    def test_user_update_with_occupied_email_400_status_code(self):
+        user = User.objects.first()
+        other_user = User.objects.last()
+        occupied_email = {
+            "email": other_user.email,
+        }
+        url = self.urls.get("user_update").format(user.id)
+        resp = self.client.put(url, json=occupied_email)
+        self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
+        print(user.email)
+        print(other_user.email)

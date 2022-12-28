@@ -3,13 +3,14 @@ from typing import List
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.views.decorators.csrf import csrf_exempt
 from ninja import Router
 
-from .schemas import Message, UserIn, UserOut
+from .schemas import ErrorMessage, UserIn, UserOut, UserUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -53,21 +54,30 @@ def user_detail(request, id: int):
 
 
 @router.post(
-    "/create", response={201: UserOut, 400: Message}, url_name="user_create"
+    "/create",
+    response={201: UserOut, 400: ErrorMessage},
+    url_name="user_create",
 )
 def user_create(request, payload: UserIn):
-    try:
-        user, _ = User.objects.get_or_create(**payload.dict())
-    except IntegrityError:
-        logger.info("Instance duplication attempt", exc_info=1)
-        return 400, {"message": "Instance with such attributes already exists"}
-    return user
+    data = payload.dict()
+    data.pop("password")
+    username, email = data.items()
+    if User.objects.filter(Q(username) | Q(email)).exists():
+        logger.info("Instance duplication attempt")
+        return 400, {
+            "error_message": "Instance with such attributes already exists"
+        }
+    return User.objects.create_user(**payload.dict())
 
 
 @router.put("/{id}/update", response=UserOut, url_name="user_update")
-def user_update(request, id: int, payload: UserIn):
+def user_update(request, id: int, payload: UserUpdate):
     user = get_object_or_404(User, pk=id)
+
     for attr, value in payload.dict().items():
         setattr(user, attr, value)
-    user.save()
+    try:
+        user.save(update_fields=payload.dict().keys())
+    except IntegrityError:
+        raise AttributeError("HHAHAHAH")
     return user
