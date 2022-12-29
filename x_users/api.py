@@ -70,7 +70,20 @@ def user_create(request, payload: UserIn):
     return User.objects.create_user(**payload.dict())
 
 
-@router.put("/{id}/update", response=UserOut, url_name="user_update")
+def trim_attr_name_from_integrity_error(error: IntegrityError) -> str:
+    import re
+
+    rexp = ".+\.([a-z]+$)"
+    if result := re.search(rexp, str(error)):
+        return result.group(1)
+    return ""
+
+
+@router.put(
+    "/{id}/update",
+    response={200: UserOut, 400: ErrorMessage},
+    url_name="user_update",
+)
 def user_update(request, id: int, payload: UserUpdate):
     user = get_object_or_404(User, pk=id)
 
@@ -78,6 +91,13 @@ def user_update(request, id: int, payload: UserUpdate):
         setattr(user, attr, value)
     try:
         user.save(update_fields=payload.dict().keys())
-    except IntegrityError:
-        raise AttributeError("HHAHAHAH")
+    except IntegrityError as e:
+        occupied_attr = trim_attr_name_from_integrity_error(e)
+        logger.info(
+            f"Update attempt with attribute {occupied_attr} already in use"
+        )
+
+        return 400, {
+            "error_message": f"Update error! Attribute {occupied_attr} already in use."
+        }
     return user

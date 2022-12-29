@@ -45,7 +45,7 @@ class UserIn(Schema):
 
 
 class UserUpdate(Schema):
-    email: constr(regex=EMAIL_REGEX)
+    email: constr(regex=EMAIL_REGEX) = ""
     first_name: str = ""
     last_name: str = ""
 

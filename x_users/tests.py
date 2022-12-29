@@ -142,7 +142,7 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
             self.assertFalse(new_user.is_superuser)
             self.assertFalse(new_user.is_active)
         else:
-            self.fail()
+            self.fail("New user was not created")
 
     def test_user_create_with_missing_email_returns_422_status_code(self):
         invalid_data = {
@@ -276,7 +276,28 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
         self.assertEqual(updated_user.first_name, valid_data.get("first_name"))
         self.assertEqual(updated_user.last_name, valid_data.get("last_name"))
 
-    def test_user_update_with_occupied_email_400_status_code(self):
+    def test_user_update_with_empty_payload_returns_422_status_code(self):
+        user = self.users[0]
+        empty_payload = {}
+        url = self.urls.get("user_update").format(user.id)
+        resp = self.client.put(url, json=empty_payload)
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_user_update_with_no_email_updates(self):
+        user = self.users[0]
+        valid_data = {
+            "first_name": "John",
+            "last_name": "Doe",
+        }
+        url = self.urls.get("user_update").format(user.id)
+        resp = self.client.put(url, json=valid_data)
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+
+        updated_user = User.objects.get(id=user.id)
+        self.assertEqual(updated_user.first_name, valid_data.get("first_name"))
+        self.assertEqual(updated_user.last_name, valid_data.get("last_name"))
+
+    def test_user_update_with_occupied_email_returns_400_status_code(self):
         user = User.objects.first()
         other_user = User.objects.last()
         occupied_email = {
@@ -285,5 +306,5 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
         url = self.urls.get("user_update").format(user.id)
         resp = self.client.put(url, json=occupied_email)
         self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
-        print(user.email)
-        print(other_user.email)
+        self.assertTrue("error_message" in resp.json())
+        self.assertTrue("email" in resp.json().get("error_message"))
