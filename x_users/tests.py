@@ -6,6 +6,7 @@ from django.test import Client, TestCase
 from django.urls import reverse_lazy
 from ninja.testing import TestClient
 
+from customers.models import Customer
 from tests.factories import UserFactory
 
 from .api import router
@@ -72,6 +73,7 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
             "user_list": "/",
             "user_detail": "/{}/",
             "user_update": "/{}/update",
+            "user_delete": "/{}/delete",
             "user_create": "/create",
         }
 
@@ -129,7 +131,7 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
         resp = self.client.post(path=self.urls["user_create"], json=valid_data)
         result = resp.json()
         self.assertTrue(resp.status_code, HTTPStatus.CREATED)
-        self.assertTrue(User.objects.count(), user_num + 1)
+        self.assertEqual(User.objects.count(), user_num + 1)
         self.assertTrue(UserOut(**result))
 
         if new_user := User.objects.filter(
@@ -143,6 +145,26 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
             self.assertFalse(new_user.is_active)
         else:
             self.fail("New user was not created")
+
+    def test_user_create_can_create_customer(self):
+        user_num = User.objects.count()
+        customer_count = Customer.objects.count()
+        valid_data = {
+            "username": "user001",
+            "email": "user001d@hello.py",
+            "password": "hello",
+            "create_customer": True,
+        }
+        resp = self.client.post(path=self.urls["user_create"], json=valid_data)
+        result = resp.json()
+        self.assertTrue(resp.status_code, HTTPStatus.CREATED)
+        self.assertEqual(User.objects.count(), user_num + 1)
+
+        self.assertEqual(Customer.objects.count(), customer_count + 1)
+        customer_exists = Customer.objects.filter(
+            user__username=valid_data.get("username")
+        ).exists()
+        self.assertTrue(customer_exists)
 
     def test_user_create_with_missing_email_returns_422_status_code(self):
         invalid_data = {
@@ -276,14 +298,14 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
         self.assertEqual(updated_user.first_name, valid_data.get("first_name"))
         self.assertEqual(updated_user.last_name, valid_data.get("last_name"))
 
-    def test_user_update_with_empty_payload_returns_422_status_code(self):
+    def test_user_update_with_empty_payload_returns_200_status_code(self):
         user = self.users[0]
         empty_payload = {}
         url = self.urls.get("user_update").format(user.id)
         resp = self.client.put(url, json=empty_payload)
-        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
 
-    def test_user_update_with_no_email_updates(self):
+    def test_user_update_with_no_email_field_updates_user(self):
         user = self.users[0]
         valid_data = {
             "first_name": "John",
@@ -308,3 +330,11 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
         self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
         self.assertTrue("error_message" in resp.json())
         self.assertTrue("email" in resp.json().get("error_message"))
+
+    def test_user_delete_removes_user_from_db(self):
+        user = self.users[0]
+        url = self.urls.get("user_delete").format(user.id)
+        resp = self.client.delete(url)
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+        deleted_user = User.objects.filter(id=user.id).exists()
+        self.assertFalse(deleted_user)

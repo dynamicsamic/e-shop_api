@@ -40,6 +40,7 @@ class UserIn(Schema):
     username: constr(regex=LONG_ENOUGH_REGEX)
     email: constr(regex=EMAIL_REGEX)
     password: constr(regex=LONG_ENOUGH_REGEX)
+    create_customer: bool = False
     # first_name: str = ""
     # last_name: str = ""
 

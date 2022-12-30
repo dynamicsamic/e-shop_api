@@ -19,7 +19,10 @@ class CustomUserManager(UserManager):
         user = super().create_user(*args, **kwargs)
         if create_customer:
             customer = Customer.objects.create(user=user)
+            print("works here")
             logger.info(f"Created a Customer object with id {customer.id}")
+            print("not works here")
+        print("here works")
         return user
 
 
