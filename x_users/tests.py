@@ -156,7 +156,6 @@ class UserApiTestCase(CreateUsersMixin, TestCase):
             "create_customer": True,
         }
         resp = self.client.post(path=self.urls["user_create"], json=valid_data)
-        result = resp.json()
         self.assertTrue(resp.status_code, HTTPStatus.CREATED)
         self.assertEqual(User.objects.count(), user_num + 1)
 
