@@ -7,6 +7,7 @@ from tests.factories import CustomerFactory
 from x_users.tests import USER_NUM, CreateUsersMixin
 
 from .api import router
+from .schemas import CustomerOut
 
 
 class CreateCustomersMixin(CreateUsersMixin):
@@ -25,7 +26,12 @@ class CreateCustomersMixin(CreateUsersMixin):
 
 
 class CustomerApiTestCase(CreateCustomersMixin, TestCase):
-    def test_foo(self):
+    def test_customer_list_returns_success_response(self):
         resp = self.ninja_client.get(self.urls.get("customer_list"))
         self.assertEqual(resp.status_code, HTTPStatus.OK)
-        print(resp.json())
+        self.assertEqual(len(resp.json()), USER_NUM)
+
+    def test_customer_list_all_response_items_follow_specific_schema(self):
+        schema = CustomerOut
+        resp = self.ninja_client.get(self.urls.get("customer_list"))
+        self.assertTrue(all(schema(**item) for item in resp.json()))

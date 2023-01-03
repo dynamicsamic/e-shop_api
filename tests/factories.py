@@ -31,4 +31,6 @@ class CustomerFactory(factory.django.DjangoModelFactory):
     status = factory.Sequence(
         lambda _: random.choice(Customer.CustomerStatus.values)
     )
-    phone_number = factory.Sequence(lambda _: fake.phone_number())
+    phone_number = factory.Sequence(
+        lambda _: str(fake.pyint(min_value=89000000000, max_value=89999999999))
+    )
