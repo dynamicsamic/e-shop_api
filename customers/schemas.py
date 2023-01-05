@@ -10,8 +10,9 @@ from .models import Customer
 
 
 class CustomerOut(ModelSchema):
-    username: str = Field("", alias="user.username")
-    email: str = Field("", alias="user.email")
+    id: int
+    username: str = Field(..., alias="user.username")
+    email: str = Field(..., alias="user.email")
     first_name: str = Field("", alias="user.first_name")
     last_name: str = Field("", alias="user.last_name")
     is_staff: bool = Field(False, alias="user.is_staff")
@@ -19,7 +20,6 @@ class CustomerOut(ModelSchema):
     class Config:
         model = Customer
         model_fields = (
-            "id",
             "status",
             "phone_number",
             "created_at",
