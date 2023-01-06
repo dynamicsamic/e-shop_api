@@ -27,12 +27,12 @@ def customer_list(request):
     return Customer.objects.all()
 
 
+@router.get("/{id}/", response=CustomerOut, url_name="customer_detail")
+def customer_detail(request, id: int):
+    return get_object_or_404(Customer, id=id)
+
+
 """
-@router.get("/{id}/", response=UserOut, url_name="user_detail")
-def user_detail(request, id: int):
-    return get_object_or_404(User, id=id)
-
-
 @router.post(
     "/create",
     response={200: UserOut, 400: ErrorMessage},
