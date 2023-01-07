@@ -14,7 +14,7 @@ from db.schemas import ErrorMessage
 from utils import trim_attr_name_from_integrity_error
 
 from .models import Customer
-from .schemas import CustomerOut
+from .schemas import CustomerCreate, CustomerOut
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,36 @@ def customer_list(request):
 @router.get("/{id}/", response=CustomerOut, url_name="customer_detail")
 def customer_detail(request, id: int):
     return get_object_or_404(Customer, id=id)
+
+
+@router.post(
+    "/create",
+    response={200: CustomerOut, 400: ErrorMessage},
+    url_name="customer_create",
+)
+def customer_create(request, payload: CustomerCreate):
+    user_data = payload.dict()
+    customer_data = {
+        "status": user_data.pop("status"),
+        "phone_number": user_data.pop("phone_number"),
+    }
+    username = user_data.get("username")
+    user_email = user_data.get("email")
+    if Customer.objects.filter(
+        Q(user__username=username) | Q(user__email=user_email)
+    ).exists():
+        logger.info("Customer instance duplication attempt")
+        return 400, {
+            "error_message": "Customer instance with such attributes already exists"
+        }
+
+    user = User.objects.filter(
+        Q(username=username) | Q(email=user_email)
+    ).first()
+    if not user:
+        user = User.objects.create_user(**user_data)
+        logger.info(f"Created User instance with id: {user.id}")
+    return Customer.objects.create(user=user, **customer_data)
 
 
 """

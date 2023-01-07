@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from ninja import Field, ModelSchema, Schema
 from pydantic import constr
 
+from utils import EMAIL_REGEX, LONG_ENOUGH_REGEX
 from x_users.schemas import UserOut
 
 from .models import Customer
@@ -26,7 +27,17 @@ class CustomerOut(ModelSchema):
             "updated_at",
         )
 
-    # user_email: str = Field(None, alias="user.email")
+
+class CustomerCreate(Schema):
+    username: constr(regex=LONG_ENOUGH_REGEX)
+    email: constr(regex=EMAIL_REGEX)
+    password: constr(regex=LONG_ENOUGH_REGEX)
+    first_name: str = ""
+    last_name: str = ""
+    is_active: bool = False
+    is_staff: bool = False
+    phone_number: str = Field("", min_length=10, max_length=11)
+    status: Customer.CustomerStatus = Customer.CustomerStatus.CREATED
 
 
 """

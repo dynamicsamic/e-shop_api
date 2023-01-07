@@ -1,5 +1,8 @@
 from django.db import IntegrityError
 
+EMAIL_REGEX = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+LONG_ENOUGH_REGEX = r"[A-Za-z0-9._%+-]{4}"
+
 
 def trim_attr_name_from_integrity_error(error: IntegrityError) -> str:
     """Extract the last part from IntegrityError traceback

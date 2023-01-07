@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from ninja import ModelSchema, Schema
 from pydantic import constr
 
+from utils import EMAIL_REGEX, LONG_ENOUGH_REGEX
+
 User = get_user_model()
 #
 
@@ -32,8 +34,6 @@ class UserOut(ModelSchema):
 #        )
 #
 #    print("foooo")    return item
-EMAIL_REGEX = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
-LONG_ENOUGH_REGEX = r"[A-Za-z0-9._%+-]{4}"
 
 
 class UserIn(Schema):
