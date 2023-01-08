@@ -14,7 +14,7 @@ from db.schemas import ErrorMessage
 from utils import trim_attr_name_from_integrity_error
 
 from .models import Customer
-from .schemas import CustomerCreate, CustomerOut
+from .schemas import CustomerCreate, CustomerOut, CustomerUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -62,23 +62,20 @@ def customer_create(request, payload: CustomerCreate):
     return Customer.objects.create(user=user, **customer_data)
 
 
-"""
-@router.post(
-    "/create",
-    response={200: UserOut, 400: ErrorMessage},
-    url_name="user_create",
+@router.put(
+    "/{id}/update",
+    response={200: CustomerOut, 400: ErrorMessage},
+    url_name="customer_update",
 )
-def user_create(request, payload: UserIn):
-    data = payload.dict()
-    username = data.get("username")
-    email = data.get("email")
-    if User.objects.filter(Q(username=username) | Q(email=email)).exists():
-        logger.info("Instance duplication attempt")
-        return 400, {
-            "error_message": "Instance with such attributes already exists"
-        }
-    return User.objects.create_user(**data)
+def customer_update(request, id: int, payload: CustomerUpdate):
+    customer = get_object_or_404(Customer, id=id)
+    valid_data = payload.dict(exclude_unset=True)
+    if not valid_data:
+        return 400, {"error_message": "Empty request body now allowed"}
+    return customer
 
+
+"""
 
 @router.put(
     "/{id}/update",

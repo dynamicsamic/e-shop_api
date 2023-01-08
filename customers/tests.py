@@ -6,7 +6,13 @@ from ninja.testing import TestClient
 from tests.factories import CustomerFactory
 from x_users.tests import USER_NUM, CreateUsersMixin
 
-from .api import customer_create, customer_detail, customer_list, router
+from .api import (
+    customer_create,
+    customer_detail,
+    customer_list,
+    customer_update,
+    router,
+)
 from .models import Customer
 from .schemas import CustomerOut
 
@@ -21,8 +27,8 @@ class CreateCustomersMixin(CreateUsersMixin):
             "customer_list": "/",
             "customer_create": "/create",
             "customer_detail": "/{id}/",
-            "customer_update": "/{}/update",
-            "customer_delete": "/{}/delete",
+            "customer_update": "/{id}/update",
+            "customer_delete": "/{id}/delete",
         }
 
 
@@ -130,6 +136,41 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         self.ninja_client.post(self.urls.get("customer_create"), json=payload)
         self.assertEqual(initial_customer_num + 1, Customer.objects.count())
 
+    def test_create_with_valid_payload_creates_new_user(self):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+
+        initial_user_num = User.objects.count()
+        payload = {
+            "username": "new_user",
+            "email": "new_user@hello.py",
+            "password": "hello",
+            "status": "activated",
+            "is_active": True,
+            "first_name": "Neo",
+        }
+        self.ninja_client.post(self.urls.get("customer_create"), json=payload)
+        self.assertEqual(initial_user_num + 1, User.objects.count())
+
+    def test_create_does_not_create_new_user_if_it_alerady_exists(self):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        payload = {
+            "username": "new_user",
+            "email": "new_user@hello.py",
+            "password": "hello",
+            "is_active": True,
+            "first_name": "Neo",
+        }
+        User.objects.create_user(**payload)
+        user_num = User.objects.count()
+
+        payload["status"] = "activated"
+        self.ninja_client.post(self.urls.get("customer_create"), json=payload)
+        self.assertEqual(user_num, User.objects.count())
+
     def test_create_with_occupied_username_returns_400_status_code(self):
         existing = Customer.objects.first()
         payload = {
@@ -209,3 +250,36 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         resp_data["user.username"] = resp_data.pop("username")
         resp_data["user.email"] = resp_data.pop("email")
         self.assertTrue(CustomerOut(**resp_data))
+
+    ### UPDATE CUSTOMER SECTION ###
+    def test_update_uses_right_func(self):
+        path = self.urls.get("customer_update")
+        path_operations = router.path_operations.get(path).operations[0]
+        view = path_operations.view_func
+        self.assertIs(view, customer_update)
+
+    def test_update_with_invalid_payload_returns_422_status_code(self):
+        customer = Customer.objects.first()
+        payload = {"invalid_smth_": "invalid-invalid"}
+        resp = self.ninja_client.put(
+            self.urls.get("customer_update").format(id=customer.id),
+            json=payload,
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_update_with_empty_payload_returns_400_status_code(self):
+        customer = Customer.objects.first()
+        payload = {}
+        resp = self.ninja_client.put(
+            self.urls.get("customer_update").format(id=customer.id),
+            json=payload,
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
+
+    def test_update_with_invalid_customer_id_returns_404_status_code(self):
+        id = -1
+        payload = {"email": "new_email@hello.py"}
+        resp = self.ninja_client.put(
+            self.urls.get("customer_update").format(id=id), json=payload
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
