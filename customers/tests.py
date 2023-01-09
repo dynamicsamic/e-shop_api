@@ -1,5 +1,6 @@
 from http import HTTPStatus
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from ninja.testing import TestClient
 
@@ -15,6 +16,8 @@ from .api import (
 )
 from .models import Customer
 from .schemas import CustomerOut
+
+User = get_user_model()
 
 
 class CreateCustomersMixin(CreateUsersMixin):
@@ -137,10 +140,6 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         self.assertEqual(initial_customer_num + 1, Customer.objects.count())
 
     def test_create_with_valid_payload_creates_new_user(self):
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-
         initial_user_num = User.objects.count()
         payload = {
             "username": "new_user",
@@ -154,9 +153,6 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         self.assertEqual(initial_user_num + 1, User.objects.count())
 
     def test_create_does_not_create_new_user_if_it_alerady_exists(self):
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
         payload = {
             "username": "new_user",
             "email": "new_user@hello.py",
@@ -283,3 +279,71 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             self.urls.get("customer_update").format(id=id), json=payload
         )
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_update_with_invalid_email_returns_422_status_code(self):
+        customer = Customer.objects.first()
+        payload = {"email": "invalid_new_email"}
+        resp = self.ninja_client.put(
+            self.urls.get("customer_update").format(id=customer.id),
+            json=payload,
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_update_with_valid_payload_returns_200_status_code(self):
+        customer = Customer.objects.first()
+        payload = {"email": "new_email@hello.py"}
+        resp = self.ninja_client.put(
+            self.urls.get("customer_update").format(id=customer.id),
+            json=payload,
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+
+    def test_update_with_valid_payload_updates_customer_and_user_attrs(self):
+        customer = Customer.objects.first()
+        user = User.objects.get(id=customer.id)
+        payload = {
+            "email": "new_email@hello.py",
+            "first_name": "sam",
+            "last_name": "smith",
+            "phone_number": "80000000000",
+        }
+        self.ninja_client.put(
+            self.urls.get("customer_update").format(id=customer.id),
+            json=payload,
+        )
+        customer.refresh_from_db()
+        user.refresh_from_db()
+        self.assertEqual(customer.phone_number, payload["phone_number"])
+        self.assertEqual(user.email, payload["email"])
+        self.assertEqual(user.first_name, payload["first_name"])
+        self.assertEqual(user.last_name, payload["last_name"])
+
+    # def test_num_save_queries(self):
+    #    from django.db import connection
+    #    from django.test.utils import CaptureQueriesContext
+
+
+#
+#    customer = Customer.objects.first()
+#    payload = {
+#        "email": "new_email@hello.py",
+#        "first_name": "sam",
+#        "last_name": "smith",
+#        "phone_number": "80000000000",
+#    }
+#
+#    with CaptureQueriesContext(connection) as ctx:
+#        self.ninja_client.put(
+#            self.urls.get("customer_update").format(id=customer.id),
+#            json=payload,
+#        )
+#        print(ctx.captured_queries)
+#        user = User.objects.get(id=customer.id)
+#        print(user.email, user.first_name, user.last_name)
+#        customer.refresh_from_db()
+#        print(
+#            customer.email,
+#            customer.first_name,
+#            customer.last_name,
+#            customer.phone_number,
+#        )

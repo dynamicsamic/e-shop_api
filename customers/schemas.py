@@ -46,7 +46,6 @@ class CustomerUpdate(Schema, extra=Extra.forbid):
     email: constr(regex=EMAIL_REGEX) = ""
     first_name: str = ""
     last_name: str = ""
-    is_active: bool = False
     phone_number: str = Field("", min_length=10, max_length=11)
 
 

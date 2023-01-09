@@ -44,6 +44,12 @@ class AbstractUserRole(models.Model):
     def __str__(self) -> str:
         return self.username
 
+    def save(self, *args, **kwargs) -> None:
+        """Enable user instance save when saving role
+        with given `update_fields`."""
+        kwargs = self._separate_user_fields(kwargs)
+        return super().save(*args, **kwargs)
+
     @property
     def username(self) -> str:
         return self.user.get_username()
@@ -55,7 +61,7 @@ class AbstractUserRole(models.Model):
     @email.setter
     def email(self, new_email: str) -> None:
         self.user.email = new_email
-        self.user.save(update_fields=("email",))
+        # self.user.save(update_fields=("email",))
 
     @property
     def first_name(self) -> str:
@@ -64,7 +70,7 @@ class AbstractUserRole(models.Model):
     @first_name.setter
     def first_name(self, new_first_name: str) -> None:
         self.user.first_name = new_first_name
-        self.user.save(update_fields=("first_name",))
+        # self.user.save(update_fields=("first_name",))
 
     @property
     def last_name(self) -> str:
@@ -73,7 +79,7 @@ class AbstractUserRole(models.Model):
     @last_name.setter
     def last_name(self, new_last_name: str) -> None:
         self.user.last_name = new_last_name
-        self.user.save(update_fields=("last_name",))
+        # self.user.save(update_fields=("last_name",))
 
     @property
     def full_name(self) -> str:
@@ -102,6 +108,27 @@ class AbstractUserRole(models.Model):
     @property
     def groups(self):
         return self.user.groups
+
+    def _separate_user_fields(self, kwargs) -> dict:
+        """Separate user fields from role fields on save.
+        Save user instance with given fields.
+        Return updated kwargs cleaned from user fields."""
+        if update_fields := kwargs.get("update_fields"):
+            user_update_fields = []
+            customer_update_fields = []
+            user_model_fields = [
+                field.name for field in self.user._meta.fields
+            ]
+
+            for field in update_fields:
+                if field in user_model_fields:
+                    user_update_fields.append(field)
+                else:
+                    customer_update_fields.append(field)
+            if user_update_fields:
+                self.user.save(update_fields=user_update_fields)
+            kwargs["update_fields"] = customer_update_fields
+        return kwargs
 
 
 '''

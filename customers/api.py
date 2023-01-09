@@ -71,7 +71,18 @@ def customer_update(request, id: int, payload: CustomerUpdate):
     customer = get_object_or_404(Customer, id=id)
     valid_data = payload.dict(exclude_unset=True)
     if not valid_data:
-        return 400, {"error_message": "Empty request body now allowed"}
+        return 400, {"error_message": "Empty request body not allowed"}
+
+    for attr, value in valid_data.items():
+        setattr(customer, attr, value)
+    try:
+        customer.save(update_fields=valid_data.keys())
+    except IntegrityError as e:
+        trouble_attr = trim_attr_name_from_integrity_error(e)
+        logger.warning(f"Trouble with updating attribute {trouble_attr}")
+        return 400, {
+            "error_message": f"Update error! Attribute {trouble_attr} may already be in use."
+        }
     return customer
 
 
