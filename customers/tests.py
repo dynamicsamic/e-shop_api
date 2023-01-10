@@ -387,4 +387,4 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             self.urls.get("customer_delete").format(id=customer.id)
         )
         user = User.objects.get(customer=customer)
-        self.assertEqual(user.is_active, False)
+        self.assertFalse(user.is_active)

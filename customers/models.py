@@ -1,12 +1,5 @@
-import datetime as dt
-import logging
-from typing import Any
-
-from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
-from django.db.models.query import QuerySet
 from django.utils.translation import gettext_lazy as _
 
 from db.models import AbstractUserRole, TimeStampModel

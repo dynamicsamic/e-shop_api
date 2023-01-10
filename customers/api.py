@@ -4,10 +4,7 @@ from typing import List
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.db.models import Q
-from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
-from django.urls import reverse_lazy
-from django.views.decorators.csrf import csrf_exempt
 from ninja import Router
 
 from db.schemas import ErrorMessage
@@ -89,9 +86,14 @@ def customer_update(request, id: int, payload: CustomerUpdate):
 @router.delete("/{id}/delete")
 def customer_delete(request, id: int):
     customer = get_object_or_404(Customer, id=id)
+    if customer.status == Customer.CustomerStatus.ARCHIVED:
+        return {
+            "warning": f"Customer with id {id} is already in archive;"
+            "nothing to change."
+        }
     customer.status = "archived"
     User.objects.filter(customer=customer).update(is_active=False)
-    customer.save()
+    customer.save(update_fields=("status",))
     return {
         "success": f"Customer with id {customer.id} was archived,"
         "`is_active` set to False"
