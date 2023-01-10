@@ -79,43 +79,20 @@ def customer_update(request, id: int, payload: CustomerUpdate):
         customer.save(update_fields=valid_data.keys())
     except IntegrityError as e:
         trouble_attr = trim_attr_name_from_integrity_error(e)
-        logger.warning(f"Trouble with updating attribute {trouble_attr}")
+        logger.warning(f"Trouble with updating attribute `{trouble_attr}`")
         return 400, {
-            "error_message": f"Update error! Attribute {trouble_attr} may already be in use."
+            "error_message": f"Update error! Attribute `{trouble_attr}` may already be in use."
         }
     return customer
 
 
-"""
-
-@router.put(
-    "/{id}/update",
-    response={200: UserOut, 400: ErrorMessage},
-    url_name="user_update",
-)
-def user_update(request, id: int, payload: UserUpdate):
-    user = get_object_or_404(User, id=id)
-
-    for attr, value in payload.dict().items():
-        setattr(user, attr, value)
-    try:
-        user.save(update_fields=payload.dict().keys())
-    except IntegrityError as e:
-        occupied_attr = trim_attr_name_from_integrity_error(e)
-        logger.info(
-            f"Update attempt with attribute {occupied_attr} already in use"
-        )
-
-        return 400, {
-            "error_message": f"Update error! Attribute {occupied_attr} already in use."
-        }
-    return user
-
-
 @router.delete("/{id}/delete")
-def user_delete(request, id: int):
-    user = get_object_or_404(User, id=id)
-    user.delete()
-    return {"success": f"User with id {id} was deleted"}
-"
-"""
+def customer_delete(request, id: int):
+    customer = get_object_or_404(Customer, id=id)
+    customer.status = "archived"
+    User.objects.filter(customer=customer).update(is_active=False)
+    customer.save()
+    return {
+        "success": f"Customer with id {customer.id} was archived,"
+        "`is_active` set to False"
+    }

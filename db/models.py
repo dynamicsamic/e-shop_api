@@ -45,7 +45,7 @@ class AbstractUserRole(models.Model):
         return self.username
 
     def save(self, *args, **kwargs) -> None:
-        """Enable user instance save when saving role
+        """Enable user instance save when saving role instance
         with given `update_fields`."""
         kwargs = self._separate_user_fields(kwargs)
         return super().save(*args, **kwargs)

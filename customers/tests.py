@@ -9,6 +9,7 @@ from x_users.tests import USER_NUM, CreateUsersMixin
 
 from .api import (
     customer_create,
+    customer_delete,
     customer_detail,
     customer_list,
     customer_update,
@@ -247,7 +248,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         resp_data["user.email"] = resp_data.pop("email")
         self.assertTrue(CustomerOut(**resp_data))
 
-    ### UPDATE CUSTOMER SECTION ###
+    ### CUSTOMER UPDATE SECTION ###
     def test_update_uses_right_func(self):
         path = self.urls.get("customer_update")
         path_operations = router.path_operations.get(path).operations[0]
@@ -318,32 +319,72 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         self.assertEqual(user.first_name, payload["first_name"])
         self.assertEqual(user.last_name, payload["last_name"])
 
-    # def test_num_save_queries(self):
-    #    from django.db import connection
-    #    from django.test.utils import CaptureQueriesContext
+    def test_update_with_occupied_email_returns_400_status_code(self):
+        customer = Customer.objects.first()
+        another_customer = Customer.objects.last()
+        payload = {"email": another_customer.email}
+        resp = self.ninja_client.put(
+            self.urls.get("customer_update").format(id=customer.id),
+            json=payload,
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
 
+    def test_update_with_occupied_email_response_contains_error_message(self):
+        customer = Customer.objects.first()
+        another_customer = Customer.objects.last()
+        payload = {"email": another_customer.email}
+        resp = self.ninja_client.put(
+            self.urls.get("customer_update").format(id=customer.id),
+            json=payload,
+        )
+        self.assertIn("error_message", resp.json())
+        self.assertIn("email", resp.json().get("error_message"))
 
-#
-#    customer = Customer.objects.first()
-#    payload = {
-#        "email": "new_email@hello.py",
-#        "first_name": "sam",
-#        "last_name": "smith",
-#        "phone_number": "80000000000",
-#    }
-#
-#    with CaptureQueriesContext(connection) as ctx:
-#        self.ninja_client.put(
-#            self.urls.get("customer_update").format(id=customer.id),
-#            json=payload,
-#        )
-#        print(ctx.captured_queries)
-#        user = User.objects.get(id=customer.id)
-#        print(user.email, user.first_name, user.last_name)
-#        customer.refresh_from_db()
-#        print(
-#            customer.email,
-#            customer.first_name,
-#            customer.last_name,
-#            customer.phone_number,
-#        )
+    ### CUSTOMER DELETE SECTION ###
+    def test_delete_uses_right_func(self):
+        path = self.urls.get("customer_delete")
+        path_operations = router.path_operations.get(path).operations[0]
+        view = path_operations.view_func
+        self.assertIs(view, customer_delete)
+
+    def test_delete_with_invalid_id_returns_404_status_code(self):
+        invalid_id = -1
+        resp = self.ninja_client.delete(
+            self.urls.get("customer_delete").format(id=invalid_id)
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_delete_with_valid_id_returns_200_status_code(self):
+        customer = Customer.objects.first()
+        resp = self.ninja_client.delete(
+            self.urls.get("customer_delete").format(id=customer.id)
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+
+    def test_delete_with_valid_id_does_not_delete_customer(self):
+        customer_num = Customer.objects.count()
+        customer = Customer.objects.first()
+        self.ninja_client.delete(
+            self.urls.get("customer_delete").format(id=customer.id)
+        )
+        self.assertEqual(customer_num, Customer.objects.count())
+
+    def test_delete_with_valid_id_changes_customer_status_to_archived(self):
+        customer = Customer.objects.first()
+        customer.status = "foo"
+        customer.save(update_fields=["status"])
+        self.ninja_client.delete(
+            self.urls.get("customer_delete").format(id=customer.id)
+        )
+        customer.refresh_from_db()
+        self.assertEqual(customer.status, Customer.CustomerStatus.ARCHIVED)
+
+    def test_delete_with_valid_id_changes_user_is_active_to_false(self):
+        customer = Customer.objects.first()
+        customer.status = "foo"
+        customer.save(update_fields=["status"])
+        self.ninja_client.delete(
+            self.urls.get("customer_delete").format(id=customer.id)
+        )
+        user = User.objects.get(customer=customer)
+        self.assertEqual(user.is_active, False)
