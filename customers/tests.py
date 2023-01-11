@@ -46,17 +46,29 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         self.assertIs(view, customer_list)
 
     def test_list_returns_200_status_code(self):
-        resp = self.ninja_client.get(self.urls.get("customer_list"))
+        headers = {"Authorization": "Bearer 123"}
+        resp = self.ninja_client.get(
+            self.urls.get("customer_list"), headers=headers
+        )
+        print(resp.json())
         self.assertEqual(resp.status_code, HTTPStatus.OK)
+
+    def test_list_returns_paginagted_result(self):
+        from django.conf import settings
+
+        resp = self.ninja_client.get(self.urls.get("customer_list"))
+        self.assertIn("items", resp.json())
+        num_items = resp.json().get("count")
+        self.assertEqual(num_items, settings.NINJA_PAGINATION_PER_PAGE)
 
     def test_list_returns_all_customers(self):
         resp = self.ninja_client.get(self.urls.get("customer_list"))
-        self.assertEqual(len(resp.json()), USER_NUM)
+        self.assertEqual(resp.json().get("count"), USER_NUM)
 
     def test_list_all_response_items_follow_specific_schema(self):
         schema = CustomerOut
         resp = self.ninja_client.get(self.urls.get("customer_list"))
-        data = resp.json().copy()
+        data = resp.json().get("items")
 
         # In a response Ninja's Schema automatically replaces submodel attributes
         # like `user.username` with a given attribute name like `username`.
@@ -71,7 +83,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
     def test_list_returns_empty_list_when_no_customer_exists(self):
         Customer.objects.all().delete()
         resp = self.ninja_client.get(self.urls.get("customer_list"))
-        self.assertEqual(resp.json(), [])
+        self.assertEqual(resp.json().get("items"), [])
 
     ### CUSTOMER CREATE SECTION ###
     def test_create_uses_right_view_func(self):

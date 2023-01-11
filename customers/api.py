@@ -4,8 +4,10 @@ from typing import List
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.db.models import Q
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
+from ninja.pagination import PageNumberPagination, paginate
 
 from db.schemas import ErrorMessage
 from utils import trim_attr_name_from_integrity_error
@@ -15,11 +17,27 @@ from .schemas import CustomerCreate, CustomerOut, CustomerUpdate
 
 logger = logging.getLogger(__name__)
 
+from ninja.security import HttpBearer
+
+
+class AuthBearer(HttpBearer):
+    def authenticate(self, request: HttpRequest, token: str):
+        print(request.user.is_staff)
+        return request.user.is_staff
+        # return super().authenticate(request, token)
+
+
 router = Router()
 User = get_user_model()
 
 
-@router.get("/", response=List[CustomerOut], url_name="customer_list")
+@router.get(
+    "/",
+    response=List[CustomerOut],
+    url_name="customer_list",
+    auth=AuthBearer(),
+)
+@paginate(PageNumberPagination)
 def customer_list(request):
     return Customer.objects.all()
 
@@ -92,6 +110,7 @@ def customer_delete(request, id: int):
             "nothing to change."
         }
     customer.status = "archived"
+    # or just customer.user.is_active = False
     User.objects.filter(customer=customer).update(is_active=False)
     customer.save(update_fields=("status",))
     return {
