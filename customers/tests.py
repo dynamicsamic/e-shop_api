@@ -46,9 +46,16 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         self.assertIs(view, customer_list)
 
     def test_list_returns_200_status_code(self):
-        headers = {"Authorization": "Bearer 123"}
+        import jwt
+        from django.conf import settings
+
+        print(dir(self.ninja_client))
+        token = jwt.encode({"user_id": "1"}, settings.SECRET_KEY)
+        user = User.objects.first()
+        headers = {"Authorization": f"Bearer {token}"}
         resp = self.ninja_client.get(
-            self.urls.get("customer_list"), headers=headers
+            self.urls.get("customer_list"),
+            headers=headers,
         )
         print(resp.json())
         self.assertEqual(resp.status_code, HTTPStatus.OK)
