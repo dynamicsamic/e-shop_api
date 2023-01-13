@@ -1,9 +1,16 @@
+from functools import partial
 from http import HTTPStatus
+from typing import Any, Dict, Union
 
+import jwt
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from ninja import NinjaAPI, Router
 from ninja.testing import TestClient
+from ninja.testing.client import NinjaResponse
 
+from tests.clients import AuthClient
 from tests.factories import CustomerFactory
 from x_users.tests import USER_NUM, CreateUsersMixin
 
@@ -20,13 +27,26 @@ from .schemas import CustomerOut
 
 User = get_user_model()
 
+from django.db.models import Model
+
+
+def get_token(obj: Model) -> str:
+    return jwt.encode({"user_id": obj.id}, settings.SECRET_KEY)
+
 
 class CreateCustomersMixin(CreateUsersMixin):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.customers = CustomerFactory.create_batch(USER_NUM)
-        cls.ninja_client = TestClient(router)
+        cls.admin = User.objects.create_superuser(
+            username="admin", password="admin", email="admin@hello.py"
+        )
+        admin_token = get_token(cls.admin)
+        user_token = get_token(cls.customers[0].user)
+        cls.guest_client = TestClient(router)
+        cls.admin_client = AuthClient(router, admin_token)
+        cls.user_client = AuthClient(router, user_token)
         cls.urls = {
             "customer_list": "/",
             "customer_create": "/create",
@@ -45,36 +65,33 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         view = path_operations.view_func
         self.assertIs(view, customer_list)
 
-    def test_list_returns_200_status_code(self):
-        import jwt
-        from django.conf import settings
+    def test_list_for_anonymous_user_returns_401_status_code(self):
+        resp = self.guest_client.get(self.urls.get("customer_list"))
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
 
-        print(dir(self.ninja_client))
-        token = jwt.encode({"user_id": "1"}, settings.SECRET_KEY)
-        user = User.objects.first()
-        headers = {"Authorization": f"Bearer {token}"}
-        resp = self.ninja_client.get(
-            self.urls.get("customer_list"),
-            headers=headers,
-        )
-        print(resp.json())
+    def test_list_for_usual_user_returns_401_status_code(self):
+        resp = self.user_client.get(self.urls.get("customer_list"))
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_list_for_admin_user_returns_200_status_code(self):
+        resp = self.admin_client.get(self.urls.get("customer_list"))
         self.assertEqual(resp.status_code, HTTPStatus.OK)
 
     def test_list_returns_paginagted_result(self):
         from django.conf import settings
 
-        resp = self.ninja_client.get(self.urls.get("customer_list"))
+        resp = self.admin_client.get(self.urls.get("customer_list"))
         self.assertIn("items", resp.json())
         num_items = resp.json().get("count")
         self.assertEqual(num_items, settings.NINJA_PAGINATION_PER_PAGE)
 
     def test_list_returns_all_customers(self):
-        resp = self.ninja_client.get(self.urls.get("customer_list"))
+        resp = self.admin_client.get(self.urls.get("customer_list"))
         self.assertEqual(resp.json().get("count"), USER_NUM)
 
     def test_list_all_response_items_follow_specific_schema(self):
         schema = CustomerOut
-        resp = self.ninja_client.get(self.urls.get("customer_list"))
+        resp = self.admin_client.get(self.urls.get("customer_list"))
         data = resp.json().get("items")
 
         # In a response Ninja's Schema automatically replaces submodel attributes
@@ -89,7 +106,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
 
     def test_list_returns_empty_list_when_no_customer_exists(self):
         Customer.objects.all().delete()
-        resp = self.ninja_client.get(self.urls.get("customer_list"))
+        resp = self.admin_client.get(self.urls.get("customer_list"))
         self.assertEqual(resp.json().get("items"), [])
 
     ### CUSTOMER CREATE SECTION ###
@@ -99,7 +116,17 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         view = path_operations.view_func
         self.assertIs(view, customer_create)
 
-    def test_create_with_valid_payload_returns_200_status_code(self):
+    def test_create_for_anonymous_user_returns_401_status_code(self):
+        resp = self.guest_client.post(
+            self.urls.get("customer_create"), json={}
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_create_for_usual_user_returns_401_status_code(self):
+        resp = self.user_client.post(self.urls.get("customer_create"), json={})
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_create_for_admin_with_valid_payload_returns_200_status_code(self):
         payload = {
             "username": "bobby",
             "email": "bobby@hello.py",
@@ -108,7 +135,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             "is_active": True,
             "first_name": "BOB",
         }
-        resp = self.ninja_client.post(
+        resp = self.admin_client.post(
             self.urls.get("customer_create"), json=payload
         )
         self.assertEqual(resp.status_code, HTTPStatus.OK)
@@ -121,7 +148,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             "is_active": True,
             "first_name": "BOB",
         }
-        resp = self.ninja_client.post(
+        resp = self.admin_client.post(
             self.urls.get("customer_create"), json=payload
         )
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
@@ -134,14 +161,14 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             "is_active": True,
             "first_name": "BOB",
         }
-        resp = self.ninja_client.post(
+        resp = self.admin_client.post(
             self.urls.get("customer_create"), json=payload
         )
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_create_with_empty_payload_returns_422_status_code(self):
         payload = {}
-        resp = self.ninja_client.post(
+        resp = self.admin_client.post(
             self.urls.get("customer_create"), json=payload
         )
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
@@ -156,7 +183,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             "is_active": True,
             "first_name": "Neo",
         }
-        self.ninja_client.post(self.urls.get("customer_create"), json=payload)
+        self.admin_client.post(self.urls.get("customer_create"), json=payload)
         self.assertEqual(initial_customer_num + 1, Customer.objects.count())
 
     def test_create_with_valid_payload_creates_new_user(self):
@@ -169,7 +196,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             "is_active": True,
             "first_name": "Neo",
         }
-        self.ninja_client.post(self.urls.get("customer_create"), json=payload)
+        self.admin_client.post(self.urls.get("customer_create"), json=payload)
         self.assertEqual(initial_user_num + 1, User.objects.count())
 
     def test_create_does_not_create_new_user_if_it_alerady_exists(self):
@@ -184,7 +211,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         user_num = User.objects.count()
 
         payload["status"] = "activated"
-        self.ninja_client.post(self.urls.get("customer_create"), json=payload)
+        self.admin_client.post(self.urls.get("customer_create"), json=payload)
         self.assertEqual(user_num, User.objects.count())
 
     def test_create_with_occupied_username_returns_400_status_code(self):
@@ -194,7 +221,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             "email": "new_user@hello.py",
             "password": "hello",
         }
-        resp = self.ninja_client.post(
+        resp = self.admin_client.post(
             self.urls.get("customer_create"), json=payload
         )
         self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
@@ -206,7 +233,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             "email": existing.email,
             "password": "hello",
         }
-        resp = self.ninja_client.post(
+        resp = self.admin_client.post(
             self.urls.get("customer_create"), json=payload
         )
         self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
@@ -218,23 +245,37 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         view = path_operations.view_func
         self.assertIs(view, customer_detail)
 
-    def test_detail_returns_200_status_code_with_valid_id(self):
+    def test_detail_for_anonymous_user_returns_401_status_code(self):
         customer = self.customers[0]
-        resp = self.ninja_client.get(
+        resp = self.guest_client.get(
+            self.urls.get("customer_detail").format(id=customer.id)
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_detail_for_usual_user_returns_401_status_code(self):
+        customer = self.customers[0]
+        resp = self.user_client.get(
+            self.urls.get("customer_detail").format(id=customer.id)
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_detail_with_valid_id_returns_200_status_code_for_admin(self):
+        customer = self.customers[0]
+        resp = self.admin_client.get(
             self.urls.get("customer_detail").format(id=customer.id)
         )
         self.assertEqual(resp.status_code, HTTPStatus.OK)
 
     def test_detail_returns_404_status_code_with_invalid_id(self):
         invalid_id = -1
-        resp = self.ninja_client.get(
+        resp = self.admin_client.get(
             self.urls.get("customer_detail").format(id=invalid_id)
         )
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_detail_returns_422_status_code_with_wrong_type_id(self):
         wrong_type_id = "wrong"
-        resp = self.ninja_client.get(
+        resp = self.admin_client.get(
             self.urls.get("customer_detail").format(id=wrong_type_id)
         )
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
@@ -243,7 +284,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         from typing import Sequence
 
         customer = self.customers[0]
-        resp = self.ninja_client.get(
+        resp = self.admin_client.get(
             self.urls.get("customer_detail").format(id=customer.id)
         )
         self.assertNotIsInstance(resp.json(), Sequence)
@@ -252,14 +293,14 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         schema = CustomerOut.schema(by_alias=False)
         expected_keys = schema.get("properties").keys()
         customer = self.customers[0]
-        resp = self.ninja_client.get(
+        resp = self.admin_client.get(
             self.urls.get("customer_detail").format(id=customer.id)
         )
         self.assertEqual(resp.json().keys(), expected_keys)
 
     def test_detail_response_dict_follow_specific_schema(self):
         customer = self.customers[0]
-        resp = self.ninja_client.get(
+        resp = self.admin_client.get(
             self.urls.get("customer_detail").format(id=customer.id)
         )
         resp_data = resp.json().copy()
@@ -277,7 +318,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
     def test_update_with_invalid_payload_returns_422_status_code(self):
         customer = Customer.objects.first()
         payload = {"invalid_smth_": "invalid-invalid"}
-        resp = self.ninja_client.put(
+        resp = self.admin_client.put(
             self.urls.get("customer_update").format(id=customer.id),
             json=payload,
         )
@@ -286,7 +327,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
     def test_update_with_empty_payload_returns_400_status_code(self):
         customer = Customer.objects.first()
         payload = {}
-        resp = self.ninja_client.put(
+        resp = self.admin_client.put(
             self.urls.get("customer_update").format(id=customer.id),
             json=payload,
         )
@@ -295,7 +336,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
     def test_update_with_invalid_customer_id_returns_404_status_code(self):
         id = -1
         payload = {"email": "new_email@hello.py"}
-        resp = self.ninja_client.put(
+        resp = self.admin_client.put(
             self.urls.get("customer_update").format(id=id), json=payload
         )
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
@@ -303,7 +344,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
     def test_update_with_invalid_email_returns_422_status_code(self):
         customer = Customer.objects.first()
         payload = {"email": "invalid_new_email"}
-        resp = self.ninja_client.put(
+        resp = self.admin_client.put(
             self.urls.get("customer_update").format(id=customer.id),
             json=payload,
         )
@@ -312,7 +353,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
     def test_update_with_valid_payload_returns_200_status_code(self):
         customer = Customer.objects.first()
         payload = {"email": "new_email@hello.py"}
-        resp = self.ninja_client.put(
+        resp = self.admin_client.put(
             self.urls.get("customer_update").format(id=customer.id),
             json=payload,
         )
@@ -327,7 +368,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
             "last_name": "smith",
             "phone_number": "80000000000",
         }
-        self.ninja_client.put(
+        self.admin_client.put(
             self.urls.get("customer_update").format(id=customer.id),
             json=payload,
         )
@@ -342,7 +383,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         customer = Customer.objects.first()
         another_customer = Customer.objects.last()
         payload = {"email": another_customer.email}
-        resp = self.ninja_client.put(
+        resp = self.admin_client.put(
             self.urls.get("customer_update").format(id=customer.id),
             json=payload,
         )
@@ -352,7 +393,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         customer = Customer.objects.first()
         another_customer = Customer.objects.last()
         payload = {"email": another_customer.email}
-        resp = self.ninja_client.put(
+        resp = self.admin_client.put(
             self.urls.get("customer_update").format(id=customer.id),
             json=payload,
         )
@@ -368,14 +409,14 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
 
     def test_delete_with_invalid_id_returns_404_status_code(self):
         invalid_id = -1
-        resp = self.ninja_client.delete(
+        resp = self.admin_client.delete(
             self.urls.get("customer_delete").format(id=invalid_id)
         )
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_delete_with_valid_id_returns_200_status_code(self):
         customer = Customer.objects.first()
-        resp = self.ninja_client.delete(
+        resp = self.admin_client.delete(
             self.urls.get("customer_delete").format(id=customer.id)
         )
         self.assertEqual(resp.status_code, HTTPStatus.OK)
@@ -383,7 +424,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
     def test_delete_with_valid_id_does_not_delete_customer(self):
         customer_num = Customer.objects.count()
         customer = Customer.objects.first()
-        self.ninja_client.delete(
+        self.admin_client.delete(
             self.urls.get("customer_delete").format(id=customer.id)
         )
         self.assertEqual(customer_num, Customer.objects.count())
@@ -392,7 +433,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         customer = Customer.objects.first()
         customer.status = "foo"
         customer.save(update_fields=["status"])
-        self.ninja_client.delete(
+        self.admin_client.delete(
             self.urls.get("customer_delete").format(id=customer.id)
         )
         customer.refresh_from_db()
@@ -402,7 +443,7 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         customer = Customer.objects.first()
         customer.status = "foo"
         customer.save(update_fields=["status"])
-        self.ninja_client.delete(
+        self.admin_client.delete(
             self.urls.get("customer_delete").format(id=customer.id)
         )
         user = User.objects.get(customer=customer)

@@ -9,6 +9,7 @@ from django.db import IntegrityError
 from django.db.models import Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
+from jwt.exceptions import DecodeError
 from ninja import Router
 from ninja.pagination import PageNumberPagination, paginate
 from ninja.security import HttpBearer
@@ -32,10 +33,16 @@ class BasicAuthBearer(HttpBearer):
 
     def _get_user(self, token: str) -> Union["User", "AnonymousUser"]:
         """Get user from jwt token. Return `AnonymousUser` if no user found."""
-        decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        anonymous = AnonymousUser()
+        try:
+            decoded = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=["HS256"]
+            )
+        except DecodeError:
+            return anonymous
         user_id = decoded.get("user_id", -1)
         user = User.objects.filter(id=user_id).first()
-        return user or AnonymousUser()
+        return user or anonymous
 
 
 class StaffOnlyAuthBearer(BasicAuthBearer):
@@ -56,7 +63,6 @@ router = Router(auth=StaffOnlyAuthBearer())
     "/",
     response=List[CustomerOut],
     url_name="customer_list",
-    auth=AuthenticatedOnlyAuthBearer(),
 )
 @paginate(PageNumberPagination)
 def customer_list(request):
