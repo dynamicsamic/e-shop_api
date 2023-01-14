@@ -1,7 +1,5 @@
 from typing import Any, Dict, Union
 
-import jwt
-from django.conf import settings
 from ninja import NinjaAPI, Router
 from ninja.testing import TestClient
 from ninja.testing.client import NinjaResponse
@@ -36,7 +34,7 @@ class AuthClient(TestClient):
     def patch(
         self,
         path: str,
-        data: Dict = ...,
+        data: Dict = {},
         json: Any = None,
         **request_params: Any,
     ) -> "NinjaResponse":
@@ -46,7 +44,7 @@ class AuthClient(TestClient):
     def put(
         self,
         path: str,
-        data: Dict = ...,
+        data: Dict = {},
         json: Any = None,
         **request_params: Any,
     ) -> "NinjaResponse":
@@ -56,7 +54,7 @@ class AuthClient(TestClient):
     def delete(
         self,
         path: str,
-        data: Dict = ...,
+        data: Dict = {},
         json: Any = None,
         **request_params: Any,
     ) -> "NinjaResponse":

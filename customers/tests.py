@@ -1,17 +1,14 @@
-from functools import partial
 from http import HTTPStatus
-from typing import Any, Dict, Union
 
 import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from ninja import NinjaAPI, Router
 from ninja.testing import TestClient
-from ninja.testing.client import NinjaResponse
 
 from tests.clients import AuthClient
 from tests.factories import CustomerFactory
+from x_auth.authentication import get_token
 from x_users.tests import USER_NUM, CreateUsersMixin
 
 from .api import (
@@ -27,12 +24,6 @@ from .schemas import CustomerOut
 
 User = get_user_model()
 
-from django.db.models import Model
-
-
-def get_token(obj: Model) -> str:
-    return jwt.encode({"user_id": obj.id}, settings.SECRET_KEY)
-
 
 class CreateCustomersMixin(CreateUsersMixin):
     @classmethod
@@ -42,8 +33,8 @@ class CreateCustomersMixin(CreateUsersMixin):
         cls.admin = User.objects.create_superuser(
             username="admin", password="admin", email="admin@hello.py"
         )
-        admin_token = get_token(cls.admin)
-        user_token = get_token(cls.customers[0].user)
+        admin_token = get_token(cls.admin).get("access_token")
+        user_token = get_token(cls.customers[0].user).get("access_token")
         cls.guest_client = TestClient(router)
         cls.admin_client = AuthClient(router, admin_token)
         cls.user_client = AuthClient(router, user_token)
@@ -266,14 +257,14 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         )
         self.assertEqual(resp.status_code, HTTPStatus.OK)
 
-    def test_detail_returns_404_status_code_with_invalid_id(self):
+    def test_detail_with_invalid_id_returns_404_status_code(self):
         invalid_id = -1
         resp = self.admin_client.get(
             self.urls.get("customer_detail").format(id=invalid_id)
         )
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
-    def test_detail_returns_422_status_code_with_wrong_type_id(self):
+    def test_detail_with_wrong_type_id_returns_422_status_code(self):
         wrong_type_id = "wrong"
         resp = self.admin_client.get(
             self.urls.get("customer_detail").format(id=wrong_type_id)
@@ -314,6 +305,20 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         path_operations = router.path_operations.get(path).operations[0]
         view = path_operations.view_func
         self.assertIs(view, customer_update)
+
+    def test_update_for_anonymous_user_returns_401_status_code(self):
+        customer = self.customers[0]
+        resp = self.guest_client.put(
+            self.urls.get("customer_update").format(id=customer.id), json={}
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_update_for_usual_user_returns_401_status_code(self):
+        customer = self.customers[0]
+        resp = self.user_client.put(
+            self.urls.get("customer_update").format(id=customer.id), json={}
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
 
     def test_update_with_invalid_payload_returns_422_status_code(self):
         customer = Customer.objects.first()
@@ -406,6 +411,20 @@ class CustomerApiTestCase(CreateCustomersMixin, TestCase):
         path_operations = router.path_operations.get(path).operations[0]
         view = path_operations.view_func
         self.assertIs(view, customer_delete)
+
+    def test_delete_for_anonymous_user_returns_401_status_code(self):
+        customer = self.customers[0]
+        resp = self.guest_client.delete(
+            self.urls.get("customer_delete").format(id=customer.id)
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_delete_for_usual_user_returns_401_status_code(self):
+        customer = self.customers[0]
+        resp = self.user_client.delete(
+            self.urls.get("customer_delete").format(id=customer.id)
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
 
     def test_delete_with_invalid_id_returns_404_status_code(self):
         invalid_id = -1

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from django.contrib.auth import get_user_model
 from ninja import Field, ModelSchema, Schema
-from pydantic import constr
+from pydantic import Extra, constr
 
 from utils import EMAIL_REGEX, LONG_ENOUGH_REGEX
 from x_users.schemas import UserOut
@@ -37,9 +37,6 @@ class CustomerCreate(Schema):
     is_active: bool = False
     phone_number: str = Field("", min_length=10, max_length=11)
     status: Customer.CustomerStatus = Customer.CustomerStatus.CREATED
-
-
-from pydantic import Extra
 
 
 class CustomerUpdate(Schema, extra=Extra.forbid):

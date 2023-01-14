@@ -1,61 +1,22 @@
 import logging
-from typing import List, Union
+from typing import List
 
-import jwt
-from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError
 from django.db.models import Q
-from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from jwt.exceptions import DecodeError
 from ninja import Router
 from ninja.pagination import PageNumberPagination, paginate
-from ninja.security import HttpBearer
 
 from db.schemas import ErrorMessage
 from utils import trim_attr_name_from_integrity_error
+from x_auth.authentication import StaffOnlyAuthBearer
 
 from .models import Customer
 from .schemas import CustomerCreate, CustomerOut, CustomerUpdate
 
-logger = logging.getLogger(__name__)
-
 User = get_user_model()
-
-
-class BasicAuthBearer(HttpBearer):
-    def authenticate(self, request: HttpRequest, token: str):
-        pass
-        # user = self._get_user(token)
-        # return user.is_staff
-
-    def _get_user(self, token: str) -> Union["User", "AnonymousUser"]:
-        """Get user from jwt token. Return `AnonymousUser` if no user found."""
-        anonymous = AnonymousUser()
-        try:
-            decoded = jwt.decode(
-                token, settings.SECRET_KEY, algorithms=["HS256"]
-            )
-        except DecodeError:
-            return anonymous
-        user_id = decoded.get("user_id", -1)
-        user = User.objects.filter(id=user_id).first()
-        return user or anonymous
-
-
-class StaffOnlyAuthBearer(BasicAuthBearer):
-    def authenticate(self, request: HttpRequest, token: str):
-        user = self._get_user(token)
-        return user.is_staff
-
-
-class AuthenticatedOnlyAuthBearer(BasicAuthBearer):
-    def authenticate(self, request: HttpRequest, token: str):
-        return bool(self._get_user(token))
-
-
+logger = logging.getLogger(__name__)
 router = Router(auth=StaffOnlyAuthBearer())
 
 
