@@ -33,8 +33,8 @@ class CreateCustomersMixin(CreateUsersMixin):
         cls.admin = User.objects.create_superuser(
             username="admin", password="admin", email="admin@hello.py"
         )
-        admin_token = get_token(cls.admin).get("access_token")
-        user_token = get_token(cls.customers[0].user).get("access_token")
+        admin_token = get_token(cls.admin)
+        user_token = get_token(cls.customers[0].user)
         cls.guest_client = TestClient(router)
         cls.admin_client = AuthClient(router, admin_token)
         cls.user_client = AuthClient(router, user_token)

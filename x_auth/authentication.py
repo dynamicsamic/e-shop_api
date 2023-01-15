@@ -32,7 +32,6 @@ class BasicAuthBearer(HttpBearer):
     def _decode(self, token: str) -> Union[dict[str, Any], HttpError]:
         """Decode token. Raise exception if invalid."""
         try:
-            print(token)
             return jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         except DecodeError as e:
             raise HttpError(401, {"invalid token format": f"{e}"})
@@ -65,7 +64,8 @@ class AuthenticatedOnlyAuthBearer(BasicAuthBearer):
         return bool(self._get_user(token))
 
 
-def get_token(obj: User) -> dict[Literal["access_token"], str]:
+def get_token(obj: "User") -> str:
+    """Return jwt token."""
     now_ts = dt.datetime.timestamp(dt.datetime.now())
     payload = {"user_id": obj.id, "exp_time": now_ts + settings.TOKEN_EXP_TIME}
-    return {"access_token": jwt.encode(payload, settings.SECRET_KEY)}
+    return jwt.encode(payload, settings.SECRET_KEY)
