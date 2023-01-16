@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from ninja.testing import TestClient
 
-from .api import router, signup, token_create
+from .api import activate, router, signup, token_create
 
 User = get_user_model()
 
@@ -14,7 +14,11 @@ class AuthTestCase(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.guest_client = TestClient(router)
-        cls.urls = {"token": "/token", "signup": "/signup"}
+        cls.urls = {
+            "token": "/token",
+            "signup": "/signup",
+            "activate": "/activate/{token}",
+        }
         cls.user_credentials = {
             "username": "new_user",
             "password": "valid_password",
@@ -161,3 +165,21 @@ class AuthTestCase(TestCase):
         }
         self.guest_client.post(self.urls.get("signup"), json=payload)
         self.assertEqual(initial_outbox_num + 1, len(mail.outbox))
+        print(dir(mail.outbox[0]))
+        print(mail.outbox[0].message())
+        reg = r"[0-9A-Za-z!-_, #@()\n]*link: (.*)\n"
+
+    def test_activate_uses_right_view(self):
+        path = self.urls.get("activate")
+        path_operations = router.path_operations.get(path).operations[0]
+        view = path_operations.view_func
+        self.assertIs(view, activate)
+
+    def test_activate_with_blank_token_returns_422_status_code(self):
+        resp = self.guest_client.post(
+            self.urls.get("activate").format(token=" ")
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    ### ACCOUNT ACTIVATION TESTS
+    # def test_activate_uses

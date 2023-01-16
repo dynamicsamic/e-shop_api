@@ -112,3 +112,7 @@ NINJA_PAGINATION_PER_PAGE = 10
 
 # auth settings
 TOKEN_EXP_TIME = 1200  # 20 mins
+
+# email settings
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+CORPORATE_EMAIL = "support@eshop.commy"

@@ -26,6 +26,8 @@ def token_create(request, credentials: CredentialsIn):
 
 @router.post("/signup", url_name="user_signup")
 def signup(request, credentials: UserIn):
+    # need to create user simultaneously: create_customer=True
+    # maybe need to return user or customer instance as response?
     try:
         user = User.objects.create_user(**credentials.dict())
     except IntegrityError as e:
@@ -38,6 +40,11 @@ def signup(request, credentials: UserIn):
         )
     token = get_token(user)
     send_activation_email(user.username, user.email, token)
+
+
+@router.post("/activate/{token}", url_name="user_activate")
+def activate(request, token: str):
+    decoded = ...
 
 
 """

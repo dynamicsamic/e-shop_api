@@ -6,13 +6,11 @@ HOST = "http://127.0.0.1:5000"
 
 EMAIL_TEMPLATE = """
     Hello, {username}, welcome to e-shop store!
-    To activate your account and get full access to e-shop features,
-    please click the link below. 
+    To activate your account and get full access, please click the link below.
 
-    Acrivation link: {host}/api/auth/activate/{token}
+    Activation link: {host}/api/auth/activate/{token}
 
     If you recieved this email by accident, please ignore it. 
-    
     E-shop team.
 """
 
