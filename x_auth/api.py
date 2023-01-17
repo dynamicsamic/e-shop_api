@@ -1,15 +1,16 @@
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404, redirect
-from ninja import Router
+from ninja import Path, Router
 from ninja.errors import HttpError
 
 from utils import trim_attr_name_from_integrity_error
 from x_auth.authentication import get_token
 from x_users.schemas import UserIn
 
+from .authentication import JWToken
 from .email import send_activation_email
-from .schemas import CredentialsIn, TokenOut
+from .schemas import CredentialsIn, PathToken, TokenOut
 
 User = get_user_model()
 router = Router()
@@ -43,8 +44,23 @@ def signup(request, credentials: UserIn):
 
 
 @router.post("/activate/{token}", url_name="user_activate")
-def activate(request, token: str):
-    decoded = ...
+def activate(request, token: PathToken = Path(...)):
+    jwt_checker = JWToken()
+    decoded = jwt_checker._decode(token)
+    if decoded is None:
+        raise HttpError(401, "invalid token")
+
+    user = get_object_or_404(User, id=decoded.get("user_id"))
+    if not jwt_checker._validate_exp_time(decoded):
+        new_token = jwt_checker.generate_token(user)
+        send_activation_email(user.get_username(), user.email, new_token)
+        raise HttpError(
+            401,
+            {"token has expired": f"Another token  was sent to {user.email}"},
+        )
+    user.is_active = True
+    user.save(update_fields=("is_active",))
+    return {"success": f"user {user.get_username()} activated!"}
 
 
 """

@@ -169,6 +169,7 @@ class AuthTestCase(TestCase):
         print(mail.outbox[0].message())
         reg = r"[0-9A-Za-z!-_, #@()\n]*link: (.*)\n"
 
+    ### ACCOUNT ACTIVATION TESTS
     def test_activate_uses_right_view(self):
         path = self.urls.get("activate")
         path_operations = router.path_operations.get(path).operations[0]
@@ -181,5 +182,16 @@ class AuthTestCase(TestCase):
         )
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
-    ### ACCOUNT ACTIVATION TESTS
+    def test_activate_with_wrong_type_token_returns_422_status_code(self):
+        resp = self.guest_client.post(
+            self.urls.get("activate").format(token={"key": "value"})
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_activate_with_invalid_token_returns_401_status_code(self):
+        resp = self.guest_client.post(
+            self.urls.get("activate").format(token={"key": "value"})
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY
+
     # def test_activate_uses

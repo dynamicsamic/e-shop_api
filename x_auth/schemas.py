@@ -13,3 +13,7 @@ class CredentialsIn(Schema):
 
 class TokenOut(Schema):
     access_token: str = Field(..., min_length=90)
+
+
+class PathToken(Schema):
+    token: constr(regex=r"[0-9A-Za-z.]+")
