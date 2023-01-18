@@ -72,8 +72,6 @@ def get_token(obj: "User") -> str:
 
 
 class JWToken:
-    generate_token = get_token
-
     def _get_user(self, token: str) -> Union["User", "AnonymousUser"]:
         """Get user from jwt token. Return `AnonymousUser` if no user found."""
         user = None
@@ -86,7 +84,11 @@ class JWToken:
     def _decode(self, token: str) -> Union[dict[str, Any], HttpError]:
         """Decode token. Raise exception if invalid."""
         try:
-            return jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            return jwt.decode(
+                token,
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+            )
         except DecodeError as e:
             return None
             raise HttpError(401, {"invalid token format": f"{e}"})
@@ -99,3 +101,7 @@ class JWToken:
         exp_time = float(exp_time)
         timestamp = dt.datetime.timestamp(dt.datetime.now())
         return exp_time > timestamp
+
+    @staticmethod
+    def generate_user_token(user: "User") -> str:
+        return get_token(user)

@@ -46,13 +46,17 @@ def signup(request, credentials: UserIn):
 @router.post("/activate/{token}", url_name="user_activate")
 def activate(request, token: PathToken = Path(...)):
     jwt_checker = JWToken()
-    decoded = jwt_checker._decode(token)
+    decoded = jwt_checker._decode(token.value)
     if decoded is None:
         raise HttpError(401, "invalid token")
 
     user = get_object_or_404(User, id=decoded.get("user_id"))
+    if user.is_active:
+        return {
+            "nothing to change": f"user {user.get_username()} is already active"
+        }
     if not jwt_checker._validate_exp_time(decoded):
-        new_token = jwt_checker.generate_token(user)
+        new_token = jwt_checker.generate_user_token(user)
         send_activation_email(user.get_username(), user.email, new_token)
         raise HttpError(
             401,

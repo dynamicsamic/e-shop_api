@@ -1,6 +1,9 @@
 from http import HTTPStatus
 
+import jwt
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.test import TestCase
 from ninja.testing import TestClient
 
@@ -22,8 +25,9 @@ class AuthTestCase(TestCase):
         cls.user_credentials = {
             "username": "new_user",
             "password": "valid_password",
+            "email": "new_email@hello.py",
         }
-        cls.user = User.objects.create_user(**cls.user_credentials)
+        cls.user: User = User.objects.create_user(**cls.user_credentials)
 
     def test_token_uses_right_view_function(self):
         path = self.urls.get("token")
@@ -155,8 +159,6 @@ class AuthTestCase(TestCase):
         self.assertTrue(user.check_password(payload["password"]))
 
     def test_signup_with_valid_payload_sends_email(self):
-        from django.core import mail
-
         initial_outbox_num = len(mail.outbox)
         payload = {
             "username": "another_user",
@@ -165,9 +167,26 @@ class AuthTestCase(TestCase):
         }
         self.guest_client.post(self.urls.get("signup"), json=payload)
         self.assertEqual(initial_outbox_num + 1, len(mail.outbox))
-        print(dir(mail.outbox[0]))
-        print(mail.outbox[0].message())
-        reg = r"[0-9A-Za-z!-_, #@()\n]*link: (.*)\n"
+
+    def test_activation_email_sends_valid_token(self):
+        import re
+
+        from x_auth.authentication import JWToken
+
+        payload = {
+            "username": "another_user",
+            "password": "another_password",
+            "email": "anotheremail@hello.py",
+        }
+        self.guest_client.post(self.urls.get("signup"), json=payload)
+        email = str(mail.outbox[0].message())
+        regexp = r"[0-9A-Za-z!-_, #@()\n;:'\"<>/?]*link: (.*)\n"
+        url = re.match(regexp, email).group(1)
+        _, token = url.split("activate/")
+        user = JWToken()._get_user(token)
+        self.assertEqual(user.get_username(), payload["username"])
+        self.assertEqual(user.email, payload["email"])
+        self.assertTrue(user.check_password(payload["password"]))
 
     ### ACCOUNT ACTIVATION TESTS
     def test_activate_uses_right_view(self):
@@ -190,8 +209,38 @@ class AuthTestCase(TestCase):
 
     def test_activate_with_invalid_token_returns_401_status_code(self):
         resp = self.guest_client.post(
-            self.urls.get("activate").format(token={"key": "value"})
+            self.urls.get("activate").format(token="invalid")
         )
-        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_activate_with_expired_token_returns_401_status_code(self):
+        token = jwt.encode({"user_id": self.user.id}, settings.SECRET_KEY)
+        resp = self.guest_client.post(
+            self.urls.get("activate").format(token=token)
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_activate_with_expired_token_sends_email_with_new_token(self):
+        initial_outbox_num = len(mail.outbox)
+        token = jwt.encode({"user_id": self.user.id}, settings.SECRET_KEY)
+        self.guest_client.post(self.urls.get("activate").format(token=token))
+        self.assertEqual(initial_outbox_num + 1, len(mail.outbox))
+
+    def test_activate_with_valid_token_returns_200_status_code(self):
+        from x_auth.authentication import get_token
+
+        token = get_token(self.user)
+        resp = self.guest_client.post(
+            self.urls.get("activate").format(token=token)
+        )
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+
+    def test_activate_with_valid_token_makes_user_active(self):
+        from x_auth.authentication import get_token
+
+        token = get_token(self.user)
+        self.guest_client.post(self.urls.get("activate").format(token=token))
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
 
     # def test_activate_uses

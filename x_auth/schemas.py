@@ -17,3 +17,7 @@ class TokenOut(Schema):
 
 class PathToken(Schema):
     token: constr(regex=r"[0-9A-Za-z.]+")
+
+    @property
+    def value(self):
+        return self.token
