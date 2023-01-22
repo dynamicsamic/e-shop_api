@@ -1,18 +1,24 @@
+import logging
+
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404
 from ninja import Path, Router
 from ninja.errors import HttpError
 
 from utils import trim_attr_name_from_integrity_error
-from x_auth.authentication import get_token
 from x_users.schemas import UserIn
 
-from .authentication import JWToken
+from .authentication import (
+    decode_jwtoken,
+    generate_user_token,
+    validate_token_exp_time,
+)
 from .email import send_activation_email
 from .schemas import CredentialsIn, PathToken, TokenOut
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 router = Router()
 
 
@@ -21,7 +27,7 @@ def token_create(request, credentials: CredentialsIn):
     username, password = credentials.dict().values()
     user = get_object_or_404(User, username=username)
     if user.check_password(password):
-        return {"access_token": get_token(user)}
+        return {"access_token": generate_user_token(user)}
     raise HttpError(401, "wrong password")
 
 
@@ -39,25 +45,30 @@ def signup(request, credentials: UserIn):
                 "error_message": f"Provided {trouble_attr_name} already in use. Please choose another one."
             },
         )
-    token = get_token(user)
-    send_activation_email(user.username, user.email, token)
+    token = generate_user_token(user)
+    sent = send_activation_email(user.username, user.email, token)
+    if not sent:
+        logger.error("email dispatch failure! need fix")
 
 
 @router.post("/activate/{token}", url_name="user_activate")
 def activate(request, token: PathToken = Path(...)):
-    jwt_checker = JWToken()
-    decoded = jwt_checker._decode(token.value)
-    if decoded is None:
-        raise HttpError(401, "invalid token")
+    payload = decode_jwtoken(token.value)
+    if isinstance(payload, Exception):
+        raise HttpError(401, {"invalid token format": f"{payload}"})
 
-    user = get_object_or_404(User, id=decoded.get("user_id"))
+    user = get_object_or_404(User, id=payload.get("user_id"))
     if user.is_active:
         return {
             "nothing to change": f"user {user.get_username()} is already active"
         }
-    if not jwt_checker._validate_exp_time(decoded):
-        new_token = jwt_checker.generate_user_token(user)
-        send_activation_email(user.get_username(), user.email, new_token)
+    if not validate_token_exp_time(payload):
+        new_token = generate_user_token(user)
+        sent = send_activation_email(
+            user.get_username(), user.email, new_token
+        )
+        if not sent:
+            logger.error("email dispatch failure! need fix")
         raise HttpError(
             401,
             {"token has expired": f"Another token  was sent to {user.email}"},
@@ -65,16 +76,3 @@ def activate(request, token: PathToken = Path(...)):
     user.is_active = True
     user.save(update_fields=("is_active",))
     return {"success": f"user {user.get_username()} activated!"}
-
-
-"""
-1.нажал на ссылку.
-2. во вью берем из урла токен
-3. декодим токен.
-4. Находим юзера.
-5. Делаем юзера активным.
-6. Возвращаем редирект на главную страницу.
-"""
-
-# redirect to main page; need work.
-# redirect(...)

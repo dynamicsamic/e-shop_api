@@ -134,5 +134,8 @@ dmypy.json
 # vscode
 .vscode/
 
-# don't look at trash
+# old code, experiments, etc
 trash.py
+*_old.py
+*_copy.py
+*delete.py

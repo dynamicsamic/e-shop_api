@@ -22,9 +22,9 @@ def send_activation_email(
     host: str = HOST,
     email_template: str = EMAIL_TEMPLATE,
     subject: str = "Message from e-shop team!",
-):
+) -> int:
     message = email_template.format(username=username, token=token, host=host)
-    send_mail(
+    return send_mail(
         subject=subject,
         message=message,
         from_email=settings.CORPORATE_EMAIL,

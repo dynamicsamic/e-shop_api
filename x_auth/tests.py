@@ -79,7 +79,7 @@ class AuthTestCase(TestCase):
     def test_jwt_token_valid(self):
         import datetime as dt
 
-        from x_auth.authentication import BasicAuthBearer
+        from x_auth.authentication import decode_jwtoken
 
         payload = {
             "username": self.user_credentials.get("username"),
@@ -87,7 +87,7 @@ class AuthTestCase(TestCase):
         }
         resp = self.guest_client.post(self.urls.get("token"), json=payload)
         token = resp.json().get("access_token")
-        decoded = BasicAuthBearer()._decode(token)
+        decoded = decode_jwtoken(token)
         now_ts = dt.datetime.timestamp(dt.datetime.now())
         self.assertEqual(decoded.get("user_id"), self.user.id)
         self.assertGreater(decoded.get("exp_time"), now_ts)
@@ -171,7 +171,7 @@ class AuthTestCase(TestCase):
     def test_activation_email_sends_valid_token(self):
         import re
 
-        from x_auth.authentication import JWToken
+        from x_auth.authentication import BasicAuthBearer
 
         payload = {
             "username": "another_user",
@@ -183,7 +183,7 @@ class AuthTestCase(TestCase):
         regexp = r"[0-9A-Za-z!-_, #@()\n;:'\"<>/?]*link: (.*)\n"
         url = re.match(regexp, email).group(1)
         _, token = url.split("activate/")
-        user = JWToken()._get_user(token)
+        user = BasicAuthBearer().get_user(token)
         self.assertEqual(user.get_username(), payload["username"])
         self.assertEqual(user.email, payload["email"])
         self.assertTrue(user.check_password(payload["password"]))
@@ -227,20 +227,23 @@ class AuthTestCase(TestCase):
         self.assertEqual(initial_outbox_num + 1, len(mail.outbox))
 
     def test_activate_with_valid_token_returns_200_status_code(self):
-        from x_auth.authentication import get_token
+        from x_auth.authentication import generate_user_token
 
-        token = get_token(self.user)
+        token = generate_user_token(self.user)
         resp = self.guest_client.post(
             self.urls.get("activate").format(token=token)
         )
         self.assertEqual(resp.status_code, HTTPStatus.OK)
 
     def test_activate_with_valid_token_makes_user_active(self):
-        from x_auth.authentication import get_token
+        from x_auth.authentication import generate_user_token
 
-        token = get_token(self.user)
+        token = generate_user_token(self.user)
         self.guest_client.post(self.urls.get("activate").format(token=token))
         self.user.refresh_from_db()
         self.assertTrue(self.user.is_active)
 
-    # def test_activate_uses
+    def test_foo(self):
+        from django.urls import reverse
+
+        print(reverse("api-1.0.0:user_signup"))
