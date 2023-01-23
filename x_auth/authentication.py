@@ -40,6 +40,19 @@ def validate_token_exp_time(payload: dict[str, Any]) -> bool:
     return exp_time > timestamp
 
 
+def check_jwtoken(token: str) -> dict | bool:
+    """
+    Decode jwtoken and validate expiration time.
+    Return decoded payload if token valid, `False` - otherwise.
+    """
+    payload = decode_jwtoken(token)
+    if isinstance(payload, Exception):
+        raise HttpError(401, {"invalid token format": f"{payload}"})
+    if is_valid := validate_token_exp_time(payload):
+        return payload
+    return is_valid
+
+
 def generate_user_token(user: "User") -> str:
     """Generate jwt token for user."""
     now_ts = dt.datetime.timestamp(dt.datetime.now())
@@ -56,15 +69,12 @@ class BasicAuthBearer(HttpBearer):
 
     def get_user(self, token: str) -> Union["User", "AnonymousUser"]:
         """Get user from jwt token. Return `AnonymousUser` if no user found."""
-        payload = decode_jwtoken(token)
-        if isinstance(payload, Exception):
-            raise HttpError(401, {"invalid token format": f"{payload}"})
-
-        if not validate_token_exp_time(payload):
+        validated = check_jwtoken(token)
+        if not validated:
             raise HttpError(
                 401, {"token validation error": "token has expired"}
             )
-        user_id = payload.get("user_id", -1)
+        user_id = validated.get("user_id", -1)
         user = User.objects.filter(id=user_id).first()
         return user or AnonymousUser()
 

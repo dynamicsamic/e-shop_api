@@ -21,6 +21,9 @@ class UserFactory(factory.django.DjangoModelFactory):
     first_name = factory.Sequence(lambda _: fake.first_name())
     last_name = factory.Sequence(lambda _: fake.last_name())
     password = "hello"
+    is_active = factory.Sequence(
+        lambda _: bool(*random.choices((1, 0), weights=(0.8, 0.2)))
+    )
 
 
 class CustomerFactory(factory.django.DjangoModelFactory):

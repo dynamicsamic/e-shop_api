@@ -33,7 +33,7 @@ def token_create(request, credentials: CredentialsIn):
 
 @router.post("/signup", url_name="user_signup")
 def signup(request, credentials: UserIn):
-    # need to create user simultaneously: create_customer=True
+    # need to create customer simultaneously: create_customer=True
     # maybe need to return user or customer instance as response?
     try:
         user = User.objects.create_user(**credentials.dict())
