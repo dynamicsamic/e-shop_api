@@ -3,7 +3,7 @@ from django.core.management.base import BaseCommand
 
 from ... import factories
 
-USER_NUM = 10
+USER_NUM = VENDOR_NUM = 10
 
 
 class Command(BaseCommand):
@@ -15,3 +15,4 @@ class Command(BaseCommand):
             user.set_password(user.password)
             user.save(update_fields=("password",))
         customers = factories.CustomerFactory.create_batch(USER_NUM)
+        vendors = factories.VendorFactory.create_batch(VENDOR_NUM)

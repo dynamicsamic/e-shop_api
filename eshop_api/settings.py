@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "ninja",
     "x_users.apps.XUsersConfig",
     "customers.apps.CustomersConfig",
+    "vendors.apps.VendorsConfig",
     "db.apps.DbConfig",
     "tests.apps.TestsConfig",
 ]

@@ -7,17 +7,17 @@ from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
-from django.views.decorators.csrf import csrf_exempt
 from ninja import Router
 
 from db.schemas import ErrorMessage
 from utils import trim_attr_name_from_integrity_error
+from x_auth.authentication import StaffOnlyAuthBearer
 
 from .schemas import UserIn, UserOut, UserUpdate
 
 logger = logging.getLogger(__name__)
 
-router = Router()
+router = Router(auth=StaffOnlyAuthBearer())
 User = get_user_model()
 
 
