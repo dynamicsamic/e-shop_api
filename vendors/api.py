@@ -1,15 +1,16 @@
 from typing import List
 
 from ninja import Router
-from ninja.pagination import PageNumberPagination, paginate
+from ninja.pagination import PageNumberPagination, RouterPaginated, paginate
 
 from .models import Vendor
 from .schemas import VendorOut
 
-router = Router()
+# router = Router()
+router = RouterPaginated()
 
 
 @router.get("/", response=List[VendorOut], url_name="vendor_list")
-@paginate(PageNumberPagination)
+# @paginate(PageNumberPagination)
 def vendor_list(request):
     return Vendor.objects.all()
