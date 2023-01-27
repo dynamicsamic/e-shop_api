@@ -4,6 +4,8 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.pagination import PageNumberPagination, RouterPaginated, paginate
 
+from x_auth.authentication import StaffOnlyAuthBearer
+
 from .models import Vendor
 from .schemas import VendorOut
 
@@ -16,6 +18,11 @@ def vendor_list(request):
     return Vendor.objects.all()
 
 
-@router.get("/{name}", response=VendorOut, url_name="vendor_detail")
+@router.get("/{name}/", response=VendorOut, url_name="vendor_detail")
 def vendor_detail(request, name: str):
     return get_object_or_404(Vendor, name=name)
+
+
+@router.post("/create", url_name="vendor_create", auth=StaffOnlyAuthBearer())
+def vendor_create(request):
+    pass

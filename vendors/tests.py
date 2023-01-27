@@ -11,7 +11,7 @@ from tests.utils import (
     get_ninja_view_from_router_paginated,
 )
 
-from .api import router, vendor_detail, vendor_list
+from .api import router, vendor_create, vendor_detail, vendor_list
 from .models import Vendor
 from .schemas import VendorOut
 
@@ -24,7 +24,7 @@ class CreateVendorsMixin:
         super().setUpClass()
         cls.vendors = VendorFactory.create_batch(VENDOR_NUM)
         cls.guest_client = TestClient(router)
-        cls.urls = {"list": "/", "detail": "/{name}"}
+        cls.urls = {"list": "/", "create": "/create", "detail": "/{name}/"}
         cls.vendor = cls.vendors[0]
 
 
@@ -113,3 +113,18 @@ class VendorsApiTestCase(CreateVendorsMixin, TestCase):
         path = self.urls.get("detail").format(name=self.vendor.name)
         resp = self.guest_client.get(path)
         self.assertEqual(resp.json().keys(), expected_keys)
+
+    # VENDOR CREATE SECTION
+    def test_create_uses_right_view(self):
+        path = self.urls.get("create")
+        view = get_ninja_view_from_router(router, path)
+        self.assertEqual(view, vendor_create)
+
+    def test_create_for_anonymous_user_returns_401_status_code(self):
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        resp = self.guest_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    # def test_create_with_valid_payload_returns_201_status_code(self):
+    #    payload = {'name': 'new vendor', 'description': 'lorem ipsum'}
+    #    resp = self.gu
