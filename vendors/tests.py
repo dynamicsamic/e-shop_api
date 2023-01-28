@@ -1,6 +1,7 @@
 from http import HTTPStatus
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from ninja.testing import TestClient
 
@@ -10,11 +11,13 @@ from tests.utils import (
     get_ninja_view_from_router,
     get_ninja_view_from_router_paginated,
 )
+from x_auth.authentication import generate_user_token
 
 from .api import router, vendor_create, vendor_detail, vendor_list
 from .models import Vendor
 from .schemas import VendorOut
 
+User = get_user_model()
 VENDOR_NUM = 10
 
 
@@ -24,8 +27,12 @@ class CreateVendorsMixin:
         super().setUpClass()
         cls.vendors = VendorFactory.create_batch(VENDOR_NUM)
         cls.guest_client = TestClient(router)
-        cls.urls = {"list": "/", "create": "/create", "detail": "/{name}/"}
+        cls.urls = {"list": "/", "create": "/create", "detail": "/{slug}/"}
         cls.vendor = cls.vendors[0]
+        cls.admin = User.objects.create_superuser(
+            username="admin", email="admin@hello.py", password="hello"
+        )
+        cls.admin_client = AuthClient(router, generate_user_token(cls.admin))
 
 
 class VendorsApiTestCase(CreateVendorsMixin, TestCase):
@@ -89,28 +96,28 @@ class VendorsApiTestCase(CreateVendorsMixin, TestCase):
         view = get_ninja_view_from_router(router, path)
         self.assertEqual(view, vendor_detail)
 
-    def test_detail_with_valid_name_returns_200_status_code(self):
-        path = self.urls.get("detail").format(name=self.vendor.name)
+    def test_detail_with_valid_slug_returns_200_status_code(self):
+        path = self.urls.get("detail").format(slug=self.vendor.slug)
         resp = self.guest_client.get(path)
         self.assertEqual(resp.status_code, HTTPStatus.OK)
 
-    def test_detail_with_valid_name_returns_selected_vendor(self):
-        path = self.urls.get("detail").format(name=self.vendor.name)
+    def test_detail_with_valid_slug_returns_selected_vendor(self):
+        path = self.urls.get("detail").format(slug=self.vendor.slug)
         resp = self.guest_client.get(path)
         attrs_expected = self.vendor.__dict__.copy()
         attrs_expected.pop("_state")
         attrs_recieved = resp.json().items()
         self.assertEqual(attrs_recieved, attrs_expected.items())
 
-    def test_detail_with_invalid_name_returns_404_status_code(self):
-        invalid_name = "invalid-invalid"
-        path = self.urls.get("detail").format(name=invalid_name)
+    def test_detail_with_invalid_slug_returns_404_status_code(self):
+        invalid_slug = "invalid-invalid"
+        path = self.urls.get("detail").format(slug=invalid_slug)
         resp = self.guest_client.get(path)
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_detail_response_object_follow_defined_schema(self):
         expected_keys = VendorOut.schema().get("properties").keys()
-        path = self.urls.get("detail").format(name=self.vendor.name)
+        path = self.urls.get("detail").format(slug=self.vendor.slug)
         resp = self.guest_client.get(path)
         self.assertEqual(resp.json().keys(), expected_keys)
 
@@ -124,6 +131,21 @@ class VendorsApiTestCase(CreateVendorsMixin, TestCase):
         payload = {"name": "new vendor", "description": "lorem ipsum"}
         resp = self.guest_client.post(self.urls.get("create"), json=payload)
         self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_create_for_admin_returns_200_status_code(self):
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
+
+    def test_create_without_payload_returns_422_status_code(self):
+        payload = {}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_create_with_missing_payload_value_returns_422_status_code(self):
+        payload = {"name": "new vendor"}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     # def test_create_with_valid_payload_returns_201_status_code(self):
     #    payload = {'name': 'new vendor', 'description': 'lorem ipsum'}
