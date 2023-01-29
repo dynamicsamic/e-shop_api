@@ -132,10 +132,30 @@ class VendorsApiTestCase(CreateVendorsMixin, TestCase):
         resp = self.guest_client.post(self.urls.get("create"), json=payload)
         self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
 
-    def test_create_for_admin_returns_200_status_code(self):
+    def test_create_for_admin_returns_201_status_code(self):
         payload = {"name": "new vendor", "description": "lorem ipsum"}
         resp = self.admin_client.post(self.urls.get("create"), json=payload)
-        self.assertEqual(resp.status_code, HTTPStatus.OK)
+        self.assertEqual(resp.status_code, HTTPStatus.CREATED)
+
+    def test_create_with_valid_payload_creates_vendor(self):
+        vendor_num_initial = Vendor.objects.count()
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        self.admin_client.post(self.urls.get("create"), json=payload)
+        vendor_num_current = Vendor.objects.count()
+        self.assertEqual(vendor_num_current, vendor_num_initial + 1)
+
+    def test_create_generates_new_vendor_with_given_attrs(self):
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        self.admin_client.post(self.urls.get("create"), json=payload)
+        new_vendor = Vendor.objects.get(name=payload["name"])
+        self.assertTrue(new_vendor.name, payload["name"])
+        self.assertTrue(new_vendor.description, payload["description"])
+
+    def test_create_response_object_follow_defined_schema(self):
+        expected_keys = VendorOut.schema().get("properties").keys()
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.json().keys(), expected_keys)
 
     def test_create_without_payload_returns_422_status_code(self):
         payload = {}
@@ -147,6 +167,7 @@ class VendorsApiTestCase(CreateVendorsMixin, TestCase):
         resp = self.admin_client.post(self.urls.get("create"), json=payload)
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
-    # def test_create_with_valid_payload_returns_201_status_code(self):
-    #    payload = {'name': 'new vendor', 'description': 'lorem ipsum'}
-    #    resp = self.gu
+    def test_create_with_occupied_name_returns_400_status_code(self):
+        payload = {"name": self.vendor.name, "description": "lorem ipsum"}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
