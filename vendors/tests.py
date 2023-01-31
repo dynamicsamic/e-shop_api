@@ -13,7 +13,13 @@ from tests.utils import (
 )
 from x_auth.authentication import generate_user_token
 
-from .api import router, vendor_create, vendor_detail, vendor_list
+from .api import (
+    router,
+    vendor_create,
+    vendor_detail,
+    vendor_list,
+    vendor_update,
+)
 from .models import Vendor
 from .schemas import VendorOut
 
@@ -27,7 +33,12 @@ class CreateVendorsMixin:
         super().setUpClass()
         cls.vendors = VendorFactory.create_batch(VENDOR_NUM)
         cls.guest_client = TestClient(router)
-        cls.urls = {"list": "/", "create": "/create", "detail": "/{slug}/"}
+        cls.urls = {
+            "list": "/",
+            "create": "/create",
+            "detail": "/{slug}/",
+            "update": "/{slug}/update",
+        }
         cls.vendor = cls.vendors[0]
         cls.admin = User.objects.create_superuser(
             username="admin", email="admin@hello.py", password="hello"
@@ -168,6 +179,57 @@ class VendorsApiTestCase(CreateVendorsMixin, TestCase):
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_create_with_occupied_name_returns_400_status_code(self):
+        payload = {"name": self.vendor.name, "description": "lorem ipsum"}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
+
+    ### VENDOR UPDATE SECTION
+    def test_update_uses_right_view(self):
+        path = self.urls.get("update")
+        view = get_ninja_view_from_router(router, path)
+        self.assertEqual(view, vendor_update)
+
+    def test_update_for_anonymous_user_returns_401_status_code(self):
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        resp = self.guest_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_update_for_admin_returns_201_status_code(self):
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.CREATED)
+
+    def test_update_with_valid_payload_creates_vendor(self):
+        vendor_num_initial = Vendor.objects.count()
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        self.admin_client.post(self.urls.get("create"), json=payload)
+        vendor_num_current = Vendor.objects.count()
+        self.assertEqual(vendor_num_current, vendor_num_initial + 1)
+
+    def test_update_generates_new_vendor_with_given_attrs(self):
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        self.admin_client.post(self.urls.get("create"), json=payload)
+        new_vendor = Vendor.objects.get(name=payload["name"])
+        self.assertTrue(new_vendor.name, payload["name"])
+        self.assertTrue(new_vendor.description, payload["description"])
+
+    def test_update_response_object_follow_defined_schema(self):
+        expected_keys = VendorOut.schema().get("properties").keys()
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.json().keys(), expected_keys)
+
+    def test_update_without_payload_returns_422_status_code(self):
+        payload = {}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_update_with_missing_payload_value_returns_422_status_code(self):
+        payload = {"name": "new vendor"}
+        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_update_with_occupied_name_returns_400_status_code(self):
         payload = {"name": self.vendor.name, "description": "lorem ipsum"}
         resp = self.admin_client.post(self.urls.get("create"), json=payload)
         self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)

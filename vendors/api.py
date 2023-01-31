@@ -42,3 +42,8 @@ def vendor_create(request, payload: VendorIn):
         return 400, {
             "error_message": "Vendor instance with such name already exists"
         }
+
+
+@router.put("/{slug}/update", url_name="vendor_create")
+def vendor_update(request, slug):
+    pass
