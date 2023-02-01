@@ -13,3 +13,8 @@ class VendorOut(ModelSchema):
 class VendorIn(Schema):
     name: str = Field(..., min_length=3, max_length=150)
     description: str
+
+
+class VendorUpdate(Schema):
+    name: str = Field(None, min_length=3, max_length=150)
+    description: str = None

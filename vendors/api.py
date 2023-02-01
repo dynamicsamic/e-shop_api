@@ -7,11 +7,11 @@ from ninja import Router
 from ninja.pagination import PageNumberPagination, RouterPaginated, paginate
 
 from db.schemas import ErrorMessage
-from utils import SlugSchema
+from utils import SlugSchema, trim_attr_name_from_integrity_error
 from x_auth.authentication import StaffOnlyAuthBearer
 
 from .models import Vendor
-from .schemas import VendorIn, VendorOut
+from .schemas import VendorIn, VendorOut, VendorUpdate
 
 # router = Router()
 logger = logging.getLogger(__name__)
@@ -44,6 +44,31 @@ def vendor_create(request, payload: VendorIn):
         }
 
 
-@router.put("/{slug}/update", url_name="vendor_create")
-def vendor_update(request, slug):
-    pass
+@router.put(
+    "/{slug}/update",
+    response={200: VendorOut, 400: ErrorMessage},
+    url_name="vendor_create",
+    auth=StaffOnlyAuthBearer(),
+)
+def vendor_update(request, slug, payload: VendorUpdate):
+    valid_data = payload.dict(exclude_unset=True)
+    if not valid_data:
+        return 400, {"error_message": "Empty request body not allowed"}
+
+    vendor = get_object_or_404(Vendor, slug=slug)
+    for attr, value in valid_data.items():
+        if attr == "name":
+            vendor.slug = None
+        setattr(vendor, attr, value)
+    try:
+        vendor.save()
+    except IntegrityError as e:
+        occupied_attr = trim_attr_name_from_integrity_error(e)
+        logger.info(
+            f"Update attempt with attribute {occupied_attr} already in use"
+        )
+
+        return 400, {
+            "error_message": f"Update error! Attribute {occupied_attr} already in use."
+        }
+    return vendor

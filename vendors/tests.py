@@ -191,45 +191,64 @@ class VendorsApiTestCase(CreateVendorsMixin, TestCase):
 
     def test_update_for_anonymous_user_returns_401_status_code(self):
         payload = {"name": "new vendor", "description": "lorem ipsum"}
-        resp = self.guest_client.post(self.urls.get("create"), json=payload)
+        path = self.urls.get("update").format(slug=self.vendor.slug)
+        resp = self.guest_client.put(path, json=payload)
         self.assertEqual(resp.status_code, HTTPStatus.UNAUTHORIZED)
 
-    def test_update_for_admin_returns_201_status_code(self):
+    def test_update_for_admin_returns_200_status_code(self):
         payload = {"name": "new vendor", "description": "lorem ipsum"}
-        resp = self.admin_client.post(self.urls.get("create"), json=payload)
-        self.assertEqual(resp.status_code, HTTPStatus.CREATED)
+        path = self.urls.get("update").format(slug=self.vendor.slug)
+        resp = self.admin_client.put(path, json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
 
-    def test_update_with_valid_payload_creates_vendor(self):
+    def test_update_with_valid_payload_updates_vendor(self):
+        from django.utils.text import slugify
+
+        path = self.urls.get("update").format(slug=self.vendor.slug)
+        payload = {"name": "new vendor", "description": "lorem ipsum"}
+        self.admin_client.put(path, json=payload)
+        self.vendor.refresh_from_db()
+        self.assertEqual(self.vendor.name, payload["name"])
+        self.assertEqual(self.vendor.description, payload["description"])
+        self.assertEqual(self.vendor.slug, slugify(payload["name"]))
+
+    def test_update_with_valid_payload_doesnot_create_new_vendor(self):
         vendor_num_initial = Vendor.objects.count()
+        path = self.urls.get("update").format(slug=self.vendor.slug)
         payload = {"name": "new vendor", "description": "lorem ipsum"}
-        self.admin_client.post(self.urls.get("create"), json=payload)
+        self.admin_client.put(path, json=payload)
         vendor_num_current = Vendor.objects.count()
-        self.assertEqual(vendor_num_current, vendor_num_initial + 1)
-
-    def test_update_generates_new_vendor_with_given_attrs(self):
-        payload = {"name": "new vendor", "description": "lorem ipsum"}
-        self.admin_client.post(self.urls.get("create"), json=payload)
-        new_vendor = Vendor.objects.get(name=payload["name"])
-        self.assertTrue(new_vendor.name, payload["name"])
-        self.assertTrue(new_vendor.description, payload["description"])
+        self.assertEqual(vendor_num_current, vendor_num_initial)
 
     def test_update_response_object_follow_defined_schema(self):
         expected_keys = VendorOut.schema().get("properties").keys()
+        path = self.urls.get("update").format(slug=self.vendor.slug)
         payload = {"name": "new vendor", "description": "lorem ipsum"}
-        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        resp = self.admin_client.put(path, json=payload)
         self.assertEqual(resp.json().keys(), expected_keys)
 
-    def test_update_without_payload_returns_422_status_code(self):
+    def test_update_without_payload_returns_400_status_code(self):
         payload = {}
-        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        path = self.urls.get("update").format(slug=self.vendor.slug)
+        resp = self.admin_client.put(path, json=payload)
+        self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
+
+    def test_update_with_wrong_type_payload_returns_422_status_code(self):
+        path = self.urls.get("update").format(slug=self.vendor.slug)
+        payload = {"name": 25, "description": ("one", "two")}
+        resp = self.admin_client.put(path, json=payload)
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_update_with_missing_payload_value_returns_422_status_code(self):
         payload = {"name": "new vendor"}
-        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        resp = self.admin_client.post(
+            self.urls.get("update").format(slug=self.vendor.slug), json=payload
+        )
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_update_with_occupied_name_returns_400_status_code(self):
         payload = {"name": self.vendor.name, "description": "lorem ipsum"}
-        resp = self.admin_client.post(self.urls.get("create"), json=payload)
+        resp = self.admin_client.post(
+            self.urls.get("update").format(slug=self.vendor.slug), json=payload
+        )
         self.assertEqual(resp.status_code, HTTPStatus.BAD_REQUEST)
